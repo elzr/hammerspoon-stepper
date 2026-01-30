@@ -201,8 +201,13 @@ end
 -- Mouse drag to move window under cursor (Cmd+Option+Ctrl + mouse move)
 -- =============================================================================
 -- Useful for apps like Kitty and Bear where Better Touch Tool doesn't work
+--
+-- Uses global _G.windowDrag table to prevent garbage collection of eventtaps
+-- and includes zombie detection (eventtaps that report enabled but don't fire)
 
-local dragState = {
+-- Global state to prevent garbage collection
+_G.windowDrag = _G.windowDrag or {}
+_G.windowDrag.dragState = {
     dragging = false,
     window = nil,
     windowStartX = 0,
@@ -210,6 +215,10 @@ local dragState = {
     mouseStartX = 0,
     mouseStartY = 0
 }
+_G.windowDrag.mouseMoveHandler = nil
+_G.windowDrag.flagsHandler = nil
+_G.windowDrag.watchdog = nil
+_G.windowDrag.lastCallbackTime = hs.timer.secondsSinceEpoch()
 
 local function getWindowUnderMouse()
     local mousePos = hs.mouse.absolutePosition()
@@ -227,16 +236,16 @@ local function getWindowUnderMouse()
     return nil
 end
 
-local mouseMoveHandler, flagsHandler
-
 local function createMouseMoveHandler()
     return hs.eventtap.new({hs.eventtap.event.types.mouseMoved}, function(event)
+        -- Track callback time for zombie detection
+        _G.windowDrag.lastCallbackTime = hs.timer.secondsSinceEpoch()
+
         local flags = event:getFlags()
         local requiredMods = flags.cmd and flags.alt and flags.ctrl
+        local dragState = _G.windowDrag.dragState
 
         if requiredMods then
-            local mousePos = hs.mouse.absolutePosition()
-
             if not dragState.dragging then
                 -- Start dragging: capture window and initial positions
                 local win = getWindowUnderMouse()
@@ -246,19 +255,18 @@ local function createMouseMoveHandler()
                     dragState.window = win
                     dragState.windowStartX = frame.x
                     dragState.windowStartY = frame.y
+                    local mousePos = hs.mouse.absolutePosition()
                     dragState.mouseStartX = mousePos.x
                     dragState.mouseStartY = mousePos.y
                 end
             else
-                -- Continue dragging: move window with mouse
+                -- Continue dragging: use event deltas for smoother movement
                 if dragState.window and dragState.window:isVisible() then
-                    local deltaX = mousePos.x - dragState.mouseStartX
-                    local deltaY = mousePos.y - dragState.mouseStartY
+                    local dx = event:getProperty(hs.eventtap.event.properties.mouseEventDeltaX)
+                    local dy = event:getProperty(hs.eventtap.event.properties.mouseEventDeltaY)
 
-                    local newX = dragState.windowStartX + deltaX
-                    local newY = dragState.windowStartY + deltaY
-
-                    dragState.window:setTopLeft({x = newX, y = newY})
+                    local frame = dragState.window:frame()
+                    dragState.window:setTopLeft({x = frame.x + dx, y = frame.y + dy})
                 end
             end
         else
@@ -275,8 +283,12 @@ end
 
 local function createFlagsHandler()
     return hs.eventtap.new({hs.eventtap.event.types.flagsChanged}, function(event)
+        -- Track callback time for zombie detection
+        _G.windowDrag.lastCallbackTime = hs.timer.secondsSinceEpoch()
+
         local flags = event:getFlags()
         local requiredMods = flags.cmd and flags.alt and flags.ctrl
+        local dragState = _G.windowDrag.dragState
 
         if not requiredMods and dragState.dragging then
             dragState.dragging = false
@@ -288,26 +300,50 @@ local function createFlagsHandler()
 end
 
 local function startEventTaps()
-    if mouseMoveHandler then mouseMoveHandler:stop() end
-    if flagsHandler then flagsHandler:stop() end
+    -- Stop existing handlers if any
+    if _G.windowDrag.mouseMoveHandler then
+        _G.windowDrag.mouseMoveHandler:stop()
+    end
+    if _G.windowDrag.flagsHandler then
+        _G.windowDrag.flagsHandler:stop()
+    end
 
-    mouseMoveHandler = createMouseMoveHandler()
-    flagsHandler = createFlagsHandler()
+    -- Create and start new handlers
+    _G.windowDrag.mouseMoveHandler = createMouseMoveHandler()
+    _G.windowDrag.flagsHandler = createFlagsHandler()
 
-    mouseMoveHandler:start()
-    flagsHandler:start()
+    _G.windowDrag.mouseMoveHandler:start()
+    _G.windowDrag.flagsHandler:start()
+
+    -- Reset callback time
+    _G.windowDrag.lastCallbackTime = hs.timer.secondsSinceEpoch()
 end
 
 -- Start the eventtaps
 startEventTaps()
 
--- Watchdog: restart eventtaps if they stop working
-local watchdog = hs.timer.new(5, function()
-    if not mouseMoveHandler:isEnabled() or not flagsHandler:isEnabled() then
-        print("Eventtap stopped, restarting...")
+-- Stop existing watchdog if reloading
+if _G.windowDrag.watchdog then
+    _G.windowDrag.watchdog:stop()
+end
+
+-- Enhanced watchdog: detect both disabled eventtaps AND zombie state
+_G.windowDrag.watchdog = hs.timer.new(3, function()
+    local handler = _G.windowDrag.mouseMoveHandler
+    if not handler then
+        startEventTaps()
+        return
+    end
+
+    local enabled = handler:isEnabled()
+    local timeSinceCallback = hs.timer.secondsSinceEpoch() - _G.windowDrag.lastCallbackTime
+
+    -- Restart if:
+    -- 1. Handler reports disabled, OR
+    -- 2. No callbacks for 10+ seconds while mouse is visible (zombie state)
+    --    (mouse not visible = screensaver/lock, so no events expected)
+    if not enabled or (timeSinceCallback > 10 and hs.mouse.absolutePosition()) then
         startEventTaps()
     end
 end)
-watchdog:start()
-
-print("Window drag with Cmd+Option+Ctrl enabled (with watchdog)")
+_G.windowDrag.watchdog:start()
