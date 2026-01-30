@@ -79,9 +79,11 @@ Moves the window to touch the specified screen edge without resizing.
 Expands the window to fill from its current position to the specified edge.
 **Reversible**: Press again when already at that edge to restore previous size.
 
-### Shrink/Unshrink (fn + option + arrows)
-- **left/up**: Shrink to minimum width/height
-- **right/down**: Restore to previous size
+### Shrink/Grow (fn + option + arrows)
+- **left**: Toggle shrink width to minimum (press again to restore)
+- **up**: Toggle shrink height to minimum (press again to restore)
+- **right**: Restore shrunk width, or grow to right edge if not shrunk (toggle)
+- **down**: Restore shrunk height, or grow to bottom edge if not shrunk (toggle)
 
 ### Focus Direction (fn + ctrl + option + arrows)
 Focus the nearest window in that direction (on the same screen):

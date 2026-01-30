@@ -53,6 +53,9 @@ local defaultCompactSize = {w = 400, h = 300}
 -- Track compact windows: {winID = {original = frame, screenID = id}}
 local compactWindows = {}
 
+-- Track shrunk windows for toggle behavior: {winID = {width = originalW, height = originalH}}
+local shrunkWindows = {}
+
 -- Forward declaration for edge highlight (defined later with other visual feedback)
 local flashEdgeHighlight
 
@@ -230,57 +233,120 @@ local function smartStepResize(dir)
   stepResize(dir)
 end
 
-local function shrink(dir)
+-- Toggle shrink width (left) or height (up)
+local function toggleShrink(dir)
   instant(function()
-    -- Don't save state when unshrinking right or down
-    local shouldSave = dir ~= "right" and dir ~= "down"
-    local win, frame, screen = setupWindowOperation(shouldSave)
+    local win, frame, screen = setupWindowOperation(false)
     if not win then return end
+    local winID = win:id()
 
     -- Get app-specific minimum size (if any)
     local appName = win:application():name():lower()
     local minSize = minShrinkSize[appName] or {w = 0, h = 0}
 
-    if dir == "left" then -- SHRINK till min width
-      local lastWidth = frame.w
-      for i = 1, 30 do
-        stepResize("left")
-        local currentWidth = win:frame().w
-        if currentWidth == lastWidth or currentWidth <= minSize.w then
-          break
-        end
-        lastWidth = currentWidth
-      end
-    elseif dir == "right" then -- UNSHRINK to original width
-      if spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
-        local lastPos = spoon.WinWin._lastPositions[1]
-        frame.w = lastPos.w
-        frame.x = lastPos.x
+    -- Initialize tracking for this window if needed
+    if not shrunkWindows[winID] then
+      shrunkWindows[winID] = {}
+    end
+
+    if dir == "left" then
+      -- Toggle width shrink
+      if shrunkWindows[winID].width then
+        -- Restore original width
+        frame.w = shrunkWindows[winID].width
+        frame.x = shrunkWindows[winID].x
         win:setFrame(frame)
-      end
-    elseif dir == "up" then -- SHRINK till min height
-      local lastHeight = frame.h
-      for i = 1, 30 do
-        stepResize("up")
-        local currentHeight = win:frame().h
-        if currentHeight == lastHeight or currentHeight <= minSize.h then
-          break
-        end
-        lastHeight = currentHeight
-      end
-    elseif dir == "down" then -- UNSHRINK to original height
-      if spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
-        local lastPos = spoon.WinWin._lastPositions[1]
-        frame.h = lastPos.h
-        frame.y = lastPos.y
-        win:setFrame(frame)
+        shrunkWindows[winID].width = nil
+        shrunkWindows[winID].x = nil
       else
-        for i = 1, 8 do
-          stepResize("down")
+        -- Save current width and shrink
+        shrunkWindows[winID].width = frame.w
+        shrunkWindows[winID].x = frame.x
+        local lastWidth = frame.w
+        for i = 1, 30 do
+          stepResize("left")
+          local currentWidth = win:frame().w
+          if currentWidth == lastWidth or currentWidth <= minSize.w then
+            break
+          end
+          lastWidth = currentWidth
+        end
+      end
+    elseif dir == "up" then
+      -- Toggle height shrink
+      if shrunkWindows[winID].height then
+        -- Restore original height
+        frame.h = shrunkWindows[winID].height
+        frame.y = shrunkWindows[winID].y
+        win:setFrame(frame)
+        shrunkWindows[winID].height = nil
+        shrunkWindows[winID].y = nil
+      else
+        -- Save current height and shrink
+        shrunkWindows[winID].height = frame.h
+        shrunkWindows[winID].y = frame.y
+        local lastHeight = frame.h
+        for i = 1, 30 do
+          stepResize("up")
+          local currentHeight = win:frame().h
+          if currentHeight == lastHeight or currentHeight <= minSize.h then
+            break
+          end
+          lastHeight = currentHeight
         end
       end
     end
+
+    -- Clean up empty entries
+    if not shrunkWindows[winID].width and not shrunkWindows[winID].height then
+      shrunkWindows[winID] = nil
+    end
   end)
+end
+
+-- Restore shrunk dimension, or grow to edge if not shrunk (toggle)
+local function restoreOrGrow(dir)
+  local win, frame, screen = setupWindowOperation(false)
+  if not win then return end
+  local winID = win:id()
+
+  if dir == "right" then
+    -- Check if width is shrunk
+    if shrunkWindows[winID] and shrunkWindows[winID].width then
+      -- Restore shrunk width
+      instant(function()
+        frame.w = shrunkWindows[winID].width
+        frame.x = shrunkWindows[winID].x
+        win:setFrame(frame)
+      end)
+      shrunkWindows[winID].width = nil
+      shrunkWindows[winID].x = nil
+      if not shrunkWindows[winID].height then
+        shrunkWindows[winID] = nil
+      end
+    else
+      -- Not shrunk - resize to right edge (toggle)
+      resizeToEdge("right")
+    end
+  elseif dir == "down" then
+    -- Check if height is shrunk
+    if shrunkWindows[winID] and shrunkWindows[winID].height then
+      -- Restore shrunk height
+      instant(function()
+        frame.h = shrunkWindows[winID].height
+        frame.y = shrunkWindows[winID].y
+        win:setFrame(frame)
+      end)
+      shrunkWindows[winID].height = nil
+      shrunkWindows[winID].y = nil
+      if not shrunkWindows[winID].width then
+        shrunkWindows[winID] = nil
+      end
+    else
+      -- Not shrunk - resize to bottom edge (toggle)
+      resizeToEdge("down")
+    end
+  end
 end
 
 -- Toggle maximize/restore
@@ -858,7 +924,7 @@ local operations = {
   [{"shift"}]          = {fn = function(dir) smartStepResize(dir) end},
   [{"ctrl"}]           = {fn = function(dir) moveToEdge(dir) end},
   [{"ctrl", "shift"}]  = {fn = function(dir) resizeToEdge(dir) end},
-  [{"option"}]         = {fn = function(dir) shrink(dir) end}
+  -- option is handled separately below for toggle shrink behavior
 }
 
 -- Bind all operations
@@ -869,6 +935,12 @@ for key, dir in pairs(keyMap) do
         end)
     end
 end
+
+-- Special bindings for option (shrink/grow)
+bindWithRepeat({"option"}, "home", function() toggleShrink("left") end)
+bindWithRepeat({"option"}, "pageup", function() toggleShrink("up") end)
+bindWithRepeat({"option"}, "end", function() restoreOrGrow("right") end)
+bindWithRepeat({"option"}, "pagedown", function() restoreOrGrow("down") end)
 
 -- Special bindings for ctrl+option (focus direction)
 bindWithRepeat({"ctrl", "option"}, "home", function() focusDirection("left") end)
