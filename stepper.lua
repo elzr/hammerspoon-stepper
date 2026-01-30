@@ -296,6 +296,70 @@ local function toggleCenter()
   win:setFrame(frame)
 end
 
+-- Cycle through half/third width aligned to edge (or restore)
+local function cycleHalfThird(dir)
+  local win, frame, screen = setupWindowOperation(false)  -- don't save yet
+  if not win then return end
+
+  local halfW = screen.w / 2
+  local thirdW = screen.w / 3
+  local tolerance = 10
+
+  local atLeft = math.abs(frame.x - screen.x) < tolerance
+  local atRight = math.abs((frame.x + frame.w) - (screen.x + screen.w)) < tolerance
+  local isHalf = math.abs(frame.w - halfW) < tolerance
+  local isThird = math.abs(frame.w - thirdW) < tolerance
+  local isFullHeight = math.abs(frame.h - screen.h) < tolerance
+
+  if dir == "left" then
+    if atLeft and isHalf and isFullHeight then
+      -- Half → Third (stay full height)
+      frame.w = thirdW
+      frame.x = screen.x
+    elseif atLeft and isThird and isFullHeight then
+      -- Third → Restore
+      if spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
+        local lastPos = spoon.WinWin._lastPositions[1]
+        frame.x = lastPos.x or frame.x
+        frame.y = lastPos.y or frame.y
+        frame.w = lastPos.w or frame.w
+        frame.h = lastPos.h or frame.h
+      end
+    else
+      -- Any other state → Half + full height (save first)
+      setupWindowOperation(true)
+      frame.x = screen.x
+      frame.y = screen.y
+      frame.w = halfW
+      frame.h = screen.h
+    end
+  else  -- right
+    if atRight and isHalf and isFullHeight then
+      -- Half → Third (stay full height)
+      frame.w = thirdW
+      frame.x = screen.x + screen.w - frame.w
+    elseif atRight and isThird and isFullHeight then
+      -- Third → Restore
+      if spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
+        local lastPos = spoon.WinWin._lastPositions[1]
+        frame.x = lastPos.x or frame.x
+        frame.y = lastPos.y or frame.y
+        frame.w = lastPos.w or frame.w
+        frame.h = lastPos.h or frame.h
+      end
+    else
+      -- Any other state → Half + full height (save first)
+      setupWindowOperation(true)
+      frame.y = screen.y
+      frame.w = halfW
+      frame.h = screen.h
+      frame.x = screen.x + screen.w - frame.w
+    end
+  end
+
+  win:setFrame(frame)
+end
+
 -- Flash a border around a window to highlight it (thicker on the focus direction side)
 local focusHighlight = nil
 local function flashFocusHighlight(win, dir)
@@ -537,7 +601,9 @@ bindWithRepeat({"ctrl", "option"}, "end", function() focusDirection("right") end
 bindWithRepeat({"ctrl", "option"}, "pageup", function() focusDirection("up") end)
 bindWithRepeat({"ctrl", "option"}, "pagedown", function() focusDirection("down") end)
 
--- Special bindings for shift+option (center/maximize)
+-- Special bindings for shift+option (center/maximize/half-third)
+bindWithRepeat({"shift", "option"}, "home", function() cycleHalfThird("left") end)
+bindWithRepeat({"shift", "option"}, "end", function() cycleHalfThird("right") end)
 bindWithRepeat({"shift", "option"}, "pageup", toggleCenter)
 bindWithRepeat({"shift", "option"}, "pagedown", toggleMaximize)
 
