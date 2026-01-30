@@ -278,43 +278,153 @@ local function toggleCenter()
   win:setFrame(frame)
 end
 
--- Focus window in direction (on same screen)
+-- Flash a border around a window to highlight it (thicker on the focus direction side)
+local focusHighlight = nil
+local function flashFocusHighlight(win, dir)
+  if focusHighlight then
+    focusHighlight:delete()
+    focusHighlight = nil
+  end
+
+  local frame = win:frame()
+  local thin = 4
+  local thick = 12
+  local radius = 10  -- macOS-style rounded corners
+  local color = {red = 0.4, green = 0.7, blue = 1.0, alpha = 0.9}
+  local padding = thick / 2 + 2
+
+  focusHighlight = hs.canvas.new({
+    x = frame.x - padding,
+    y = frame.y - padding,
+    w = frame.w + padding * 2,
+    h = frame.h + padding * 2
+  })
+
+  -- Base rounded rectangle border (thin)
+  focusHighlight:appendElements({
+    type = "rectangle",
+    action = "stroke",
+    strokeColor = color,
+    strokeWidth = thin,
+    roundedRectRadii = {xRadius = radius, yRadius = radius},
+    frame = {x = padding - thin/2, y = padding - thin/2, w = frame.w + thin, h = frame.h + thin}
+  })
+
+  -- Thick emphasis line on the directional side
+  local emphasisLine = nil
+  if dir == "left" then
+    emphasisLine = {
+      type = "segments",
+      action = "stroke",
+      strokeColor = color,
+      strokeWidth = thick,
+      strokeCapStyle = "round",
+      coordinates = {
+        {x = padding, y = padding + radius},
+        {x = padding, y = padding + frame.h - radius}
+      }
+    }
+  elseif dir == "right" then
+    emphasisLine = {
+      type = "segments",
+      action = "stroke",
+      strokeColor = color,
+      strokeWidth = thick,
+      strokeCapStyle = "round",
+      coordinates = {
+        {x = padding + frame.w, y = padding + radius},
+        {x = padding + frame.w, y = padding + frame.h - radius}
+      }
+    }
+  elseif dir == "up" then
+    emphasisLine = {
+      type = "segments",
+      action = "stroke",
+      strokeColor = color,
+      strokeWidth = thick,
+      strokeCapStyle = "round",
+      coordinates = {
+        {x = padding + radius, y = padding},
+        {x = padding + frame.w - radius, y = padding}
+      }
+    }
+  elseif dir == "down" then
+    emphasisLine = {
+      type = "segments",
+      action = "stroke",
+      strokeColor = color,
+      strokeWidth = thick,
+      strokeCapStyle = "round",
+      coordinates = {
+        {x = padding + radius, y = padding + frame.h},
+        {x = padding + frame.w - radius, y = padding + frame.h}
+      }
+    }
+  end
+
+  if emphasisLine then
+    focusHighlight:appendElements(emphasisLine)
+  end
+
+  focusHighlight:show()
+
+  -- Fade out after a brief moment
+  hs.timer.doAfter(0.3, function()
+    if focusHighlight then
+      focusHighlight:delete()
+      focusHighlight = nil
+    end
+  end)
+end
+
+-- Focus window in direction (on same screen, with wrap-around)
 local function focusDirection(dir)
   local win = hs.window.focusedWindow()
   if not win then return end
 
-  local currentFrame = win:frame()
   local currentScreen = win:screen()
+  local currentScreenID = currentScreen:id()
   local windows = hs.window.orderedWindows()
 
-  local candidates = {}
+  -- Collect all standard windows on the same screen (including current)
+  local screenWindows = {}
   for _, w in ipairs(windows) do
-    if w ~= win and w:isStandard() and w:screen() == currentScreen then
+    if w:isStandard() and w:screen():id() == currentScreenID then
       local frame = w:frame()
-      if dir == "left" and frame.x < currentFrame.x then
-        table.insert(candidates, {win = w, pos = frame.x})
-      elseif dir == "right" and frame.x > currentFrame.x then
-        table.insert(candidates, {win = w, pos = frame.x})
-      elseif dir == "up" and frame.y < currentFrame.y then
-        table.insert(candidates, {win = w, pos = frame.y})
-      elseif dir == "down" and frame.y > currentFrame.y then
-        table.insert(candidates, {win = w, pos = frame.y})
-      end
+      local pos = (dir == "left" or dir == "right") and frame.x or frame.y
+      table.insert(screenWindows, {win = w, pos = pos})
     end
   end
 
-  if #candidates == 0 then return end
+  if #screenWindows <= 1 then return end  -- No other windows to focus
 
-  -- Sort: pick closest window in that direction
-  table.sort(candidates, function(a, b)
-    if dir == "left" or dir == "up" then
-      return a.pos > b.pos  -- descending (closest to current)
-    else
-      return a.pos < b.pos  -- ascending (closest to current)
+  -- Sort by position (ascending)
+  table.sort(screenWindows, function(a, b) return a.pos < b.pos end)
+
+  -- Find current window's index
+  local currentIdx = nil
+  for i, w in ipairs(screenWindows) do
+    if w.win:id() == win:id() then
+      currentIdx = i
+      break
     end
-  end)
+  end
 
-  candidates[1].win:focus()
+  if not currentIdx then return end
+
+  -- Calculate next index with wrap-around
+  local nextIdx
+  if dir == "left" or dir == "up" then
+    nextIdx = currentIdx - 1
+    if nextIdx < 1 then nextIdx = #screenWindows end  -- Wrap to end
+  else
+    nextIdx = currentIdx + 1
+    if nextIdx > #screenWindows then nextIdx = 1 end  -- Wrap to start
+  end
+
+  local targetWin = screenWindows[nextIdx].win
+  targetWin:focus()
+  flashFocusHighlight(targetWin, dir)
 end
 
 local function bindWithRepeat(mods, key, fn)
