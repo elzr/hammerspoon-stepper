@@ -8,8 +8,9 @@ Stepper is built around **interactive steps, not preset sizes**. Instead of snap
 
 - **Piecemeal**: Each keypress makes a small change. Repeat to continue.
 - **Reversible**: Every action can be undone by the opposite action.
-- **No presets**: No half-screen, no maximize, no memorized layouts. Just steps.
+- **No presets**: No half-screen, no thirds, no memorized layouts. Just steps.
 - **Edge-aware**: Windows "stick" to edges and behave intelligently at boundaries.
+- **Instant**: No animations. All operations happen immediately.
 
 ## Key Bindings
 
@@ -22,6 +23,7 @@ All bindings use **fn + modifier + arrow keys** (Home/End/PageUp/PageDown):
 | **ctrl** | Move to edge | fn + ctrl + arrows |
 | **ctrl+shift** | Resize to edge | fn + ctrl + shift + arrows |
 | **option** | Shrink/unshrink | fn + option + arrows |
+| **ctrl+option** | Center/maximize toggle | fn + ctrl + option + up/down |
 
 ## Smart Resize Behavior (fn + shift + arrows)
 
@@ -65,6 +67,16 @@ Expands the window to fill from its current position to the specified edge.
 ### Shrink/Unshrink (fn + option + arrows)
 - **left/up**: Shrink to minimum width/height
 - **right/down**: Restore to previous size
+
+### Center Toggle (fn + ctrl + option + up)
+Progressive centering:
+1. First press: center vertically
+2. Second press: center horizontally
+3. Third press: restore previous position
+
+### Maximize Toggle (fn + ctrl + option + down)
+- Press to maximize window to fill screen
+- Press again to restore previous size and position
 
 ## Mouse Drag
 

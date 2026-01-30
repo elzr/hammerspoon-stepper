@@ -1,3 +1,5 @@
+hs.window.animationDuration = 0  -- Instant window operations, no animation
+
 hs.loadSpoon("WinWin")
 local stepMove = function(dir) spoon.WinWin:stepMove(dir) end
 local stepResize = function(dir) spoon.WinWin:stepResize(dir) end
@@ -96,23 +98,21 @@ local function resizeToEdge(dir)
       frame.h = lastPos.h or frame.h
     end
   else
-    -- Save current position, then resize to edge
+    -- Save current position, then resize to edge (single step)
     setupWindowOperation(true)
     if dir == "left" then
-        -- Move to right edge first, then resize left
-        frame.x = screen.x + screen.w - frame.w
-        win:setFrame(frame)
-        frame.w = frame.w + frame.x - screen.x
+        -- Expand to left edge, keeping right edge fixed
+        frame.w = frame.x + frame.w - screen.x
         frame.x = screen.x
     elseif dir == "right" then
+        -- Expand to right edge, keeping left edge fixed
         frame.w = screen.x + screen.w - frame.x
     elseif dir == "up" then
-        -- Move to bottom edge first, then resize up
-        frame.y = screen.y + screen.h - frame.h
-        win:setFrame(frame)
-        frame.h = frame.h + frame.y - screen.y
+        -- Expand to top edge, keeping bottom edge fixed
+        frame.h = frame.y + frame.h - screen.y
         frame.y = screen.y
     elseif dir == "down" then
+        -- Expand to bottom edge, keeping top edge fixed
         frame.h = screen.y + screen.h - frame.y
     end
   end
@@ -221,6 +221,63 @@ local function shrink(dir)
   end
 end
 
+-- Toggle maximize/restore
+local function toggleMaximize()
+  local win, frame, screen = setupWindowOperation(false)  -- don't save yet
+  if not win then return end
+
+  -- Check if already maximized (within 10px tolerance)
+  local isMaximized = math.abs(frame.x - screen.x) < 10 and
+                      math.abs(frame.y - screen.y) < 10 and
+                      math.abs(frame.w - screen.w) < 10 and
+                      math.abs(frame.h - screen.h) < 10
+
+  if isMaximized and spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
+    -- Restore previous position
+    local lastPos = spoon.WinWin._lastPositions[1]
+    frame.x = lastPos.x or frame.x
+    frame.y = lastPos.y or frame.y
+    frame.w = lastPos.w or frame.w
+    frame.h = lastPos.h or frame.h
+  else
+    -- Save current position, then maximize
+    setupWindowOperation(true)
+    frame.x = screen.x
+    frame.y = screen.y
+    frame.w = screen.w
+    frame.h = screen.h
+  end
+
+  win:setFrame(frame)
+end
+
+-- Toggle center: vertical first, then horizontal, then restore
+local function toggleCenter()
+  local win, frame, screen = setupWindowOperation(false)  -- don't save yet
+  if not win then return end
+
+  local centerX = screen.x + (screen.w - frame.w) / 2
+  local centerY = screen.y + (screen.h - frame.h) / 2
+  local isCenteredH = math.abs(frame.x - centerX) < 10
+  local isCenteredV = math.abs(frame.y - centerY) < 10
+
+  if not isCenteredV then
+    -- First: center vertically
+    setupWindowOperation(true)
+    frame.y = centerY
+  elseif not isCenteredH then
+    -- Second: center horizontally
+    frame.x = centerX
+  elseif spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
+    -- Third: restore previous position
+    local lastPos = spoon.WinWin._lastPositions[1]
+    frame.x = lastPos.x or frame.x
+    frame.y = lastPos.y or frame.y
+  end
+
+  win:setFrame(frame)
+end
+
 local function bindWithRepeat(mods, key, fn)
     hs.hotkey.bind(mods, key, fn, nil, fn)
 end
@@ -250,6 +307,10 @@ for key, dir in pairs(keyMap) do
         end)
     end
 end
+
+-- Special bindings for ctrl+option
+bindWithRepeat({"ctrl", "option"}, "pageup", toggleCenter)
+bindWithRepeat({"ctrl", "option"}, "pagedown", toggleMaximize)
 
 -- =============================================================================
 -- Mouse drag to move window under cursor (Cmd+Option+Ctrl + mouse move)
