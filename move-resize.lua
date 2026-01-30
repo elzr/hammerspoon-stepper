@@ -196,3 +196,118 @@ for key, dir in pairs(keyMap) do
         end)
     end
 end
+
+-- =============================================================================
+-- Mouse drag to move window under cursor (Cmd+Option+Ctrl + mouse move)
+-- =============================================================================
+-- Useful for apps like Kitty and Bear where Better Touch Tool doesn't work
+
+local dragState = {
+    dragging = false,
+    window = nil,
+    windowStartX = 0,
+    windowStartY = 0,
+    mouseStartX = 0,
+    mouseStartY = 0
+}
+
+local function getWindowUnderMouse()
+    local mousePos = hs.mouse.absolutePosition()
+    local windows = hs.window.orderedWindows()
+
+    for _, win in ipairs(windows) do
+        if win:isStandard() then
+            local frame = win:frame()
+            if mousePos.x >= frame.x and mousePos.x <= frame.x + frame.w and
+               mousePos.y >= frame.y and mousePos.y <= frame.y + frame.h then
+                return win
+            end
+        end
+    end
+    return nil
+end
+
+local mouseMoveHandler, flagsHandler
+
+local function createMouseMoveHandler()
+    return hs.eventtap.new({hs.eventtap.event.types.mouseMoved}, function(event)
+        local flags = event:getFlags()
+        local requiredMods = flags.cmd and flags.alt and flags.ctrl
+
+        if requiredMods then
+            local mousePos = hs.mouse.absolutePosition()
+
+            if not dragState.dragging then
+                -- Start dragging: capture window and initial positions
+                local win = getWindowUnderMouse()
+                if win then
+                    local frame = win:frame()
+                    dragState.dragging = true
+                    dragState.window = win
+                    dragState.windowStartX = frame.x
+                    dragState.windowStartY = frame.y
+                    dragState.mouseStartX = mousePos.x
+                    dragState.mouseStartY = mousePos.y
+                end
+            else
+                -- Continue dragging: move window with mouse
+                if dragState.window and dragState.window:isVisible() then
+                    local deltaX = mousePos.x - dragState.mouseStartX
+                    local deltaY = mousePos.y - dragState.mouseStartY
+
+                    local newX = dragState.windowStartX + deltaX
+                    local newY = dragState.windowStartY + deltaY
+
+                    dragState.window:setTopLeft({x = newX, y = newY})
+                end
+            end
+        else
+            -- Modifiers released, stop dragging
+            if dragState.dragging then
+                dragState.dragging = false
+                dragState.window = nil
+            end
+        end
+
+        return false  -- Don't consume the event
+    end)
+end
+
+local function createFlagsHandler()
+    return hs.eventtap.new({hs.eventtap.event.types.flagsChanged}, function(event)
+        local flags = event:getFlags()
+        local requiredMods = flags.cmd and flags.alt and flags.ctrl
+
+        if not requiredMods and dragState.dragging then
+            dragState.dragging = false
+            dragState.window = nil
+        end
+
+        return false
+    end)
+end
+
+local function startEventTaps()
+    if mouseMoveHandler then mouseMoveHandler:stop() end
+    if flagsHandler then flagsHandler:stop() end
+
+    mouseMoveHandler = createMouseMoveHandler()
+    flagsHandler = createFlagsHandler()
+
+    mouseMoveHandler:start()
+    flagsHandler:start()
+end
+
+-- Start the eventtaps
+startEventTaps()
+
+-- Watchdog: restart eventtaps if they stop working
+local watchdog = hs.timer.new(5, function()
+    if not mouseMoveHandler:isEnabled() or not flagsHandler:isEnabled() then
+        print("Eventtap stopped, restarting...")
+        startEventTaps()
+    end
+end)
+watchdog:start()
+
+print("Window drag with Cmd+Option+Ctrl enabled (with watchdog)")
