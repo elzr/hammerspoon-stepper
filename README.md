@@ -12,6 +12,17 @@ Stepper is built around **interactive steps, not preset sizes**. Instead of snap
 - **Edge-aware**: Windows "stick" to edges and behave intelligently at boundaries.
 - **Instant**: No animations. All operations happen immediately.
 
+### Why Not a Tiling Manager?
+
+Traditional tiling managers offer two extremes: rigid presets ("snap to left half") or complete tiling tyranny (every window must tile, no overlap allowed). Stepper takes a different path:
+
+- **Iterative**: Both position and size are adjusted incrementally. Hold the key to keep going.
+- **Overlapping-friendly**: Windows can overlap naturally. No forced tiling grid.
+- **Organic layouts**: Your arrangement emerges from small adjustments, not preset templates.
+- **Context-aware**: The same key does different things depending on where your window is.
+
+The result feels more like sculpting than snapping.
+
 ## Key Bindings
 
 All bindings use **fn + modifier + arrow keys** (Home/End/PageUp/PageDown):
@@ -23,7 +34,8 @@ All bindings use **fn + modifier + arrow keys** (Home/End/PageUp/PageDown):
 | **ctrl** | Move to edge | fn + ctrl + arrows |
 | **ctrl+shift** | Resize to edge | fn + ctrl + shift + arrows |
 | **option** | Shrink/unshrink | fn + option + arrows |
-| **ctrl+option** | Center/maximize/focus | fn + ctrl + option + arrows |
+| **ctrl+option** | Focus direction | fn + ctrl + option + arrows |
+| **shift+option** | Center/maximize toggle | fn + shift + option + up/down |
 
 ## Smart Resize Behavior (fn + shift + arrows)
 
@@ -68,20 +80,20 @@ Expands the window to fill from its current position to the specified edge.
 - **left/up**: Shrink to minimum width/height
 - **right/down**: Restore to previous size
 
-### Center Toggle (fn + ctrl + option + up)
+### Focus Direction (fn + ctrl + option + arrows)
+Focus the nearest window in that direction (on the same screen):
+- **left/right**: based on window's left edge (x position)
+- **up/down**: based on window's top edge (y position)
+
+### Center Toggle (fn + shift + option + up)
 Progressive centering:
 1. First press: center vertically
 2. Second press: center horizontally
 3. Third press: restore previous position
 
-### Maximize Toggle (fn + ctrl + option + down)
+### Maximize Toggle (fn + shift + option + down)
 - Press to maximize window to fill screen
 - Press again to restore previous size and position
-
-### Focus Direction (fn + ctrl + option + left/right)
-Focus the nearest window in that direction (on the same screen):
-- **left**: focus window whose left edge is left of current window's left edge
-- **right**: focus window whose left edge is right of current window's left edge
 
 ## Mouse Drag
 

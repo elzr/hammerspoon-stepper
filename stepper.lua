@@ -292,21 +292,25 @@ local function focusDirection(dir)
     if w ~= win and w:isStandard() and w:screen() == currentScreen then
       local frame = w:frame()
       if dir == "left" and frame.x < currentFrame.x then
-        table.insert(candidates, {win = w, x = frame.x})
+        table.insert(candidates, {win = w, pos = frame.x})
       elseif dir == "right" and frame.x > currentFrame.x then
-        table.insert(candidates, {win = w, x = frame.x})
+        table.insert(candidates, {win = w, pos = frame.x})
+      elseif dir == "up" and frame.y < currentFrame.y then
+        table.insert(candidates, {win = w, pos = frame.y})
+      elseif dir == "down" and frame.y > currentFrame.y then
+        table.insert(candidates, {win = w, pos = frame.y})
       end
     end
   end
 
   if #candidates == 0 then return end
 
-  -- Sort: for left, pick rightmost (closest); for right, pick leftmost (closest)
+  -- Sort: pick closest window in that direction
   table.sort(candidates, function(a, b)
-    if dir == "left" then
-      return a.x > b.x  -- descending (rightmost first)
+    if dir == "left" or dir == "up" then
+      return a.pos > b.pos  -- descending (closest to current)
     else
-      return a.x < b.x  -- ascending (leftmost first)
+      return a.pos < b.pos  -- ascending (closest to current)
     end
   end)
 
@@ -343,11 +347,15 @@ for key, dir in pairs(keyMap) do
     end
 end
 
--- Special bindings for ctrl+option
-bindWithRepeat({"ctrl", "option"}, "pageup", toggleCenter)
-bindWithRepeat({"ctrl", "option"}, "pagedown", toggleMaximize)
+-- Special bindings for ctrl+option (focus direction)
 bindWithRepeat({"ctrl", "option"}, "home", function() focusDirection("left") end)
 bindWithRepeat({"ctrl", "option"}, "end", function() focusDirection("right") end)
+bindWithRepeat({"ctrl", "option"}, "pageup", function() focusDirection("up") end)
+bindWithRepeat({"ctrl", "option"}, "pagedown", function() focusDirection("down") end)
+
+-- Special bindings for shift+option (center/maximize)
+bindWithRepeat({"shift", "option"}, "pageup", toggleCenter)
+bindWithRepeat({"shift", "option"}, "pagedown", toggleMaximize)
 
 -- =============================================================================
 -- Mouse drag to move window under cursor (Cmd+Option+Ctrl + mouse move)
