@@ -38,47 +38,85 @@ local function setupWindowOperation(shouldSave)
   return win, frame, screen
 end
 
--- Move window to edge
+-- Move window to edge (or restore if already at edge)
 local function moveToEdge(dir)
-  local win, frame, screen = setupWindowOperation()
+  local win, frame, screen = setupWindowOperation(false)  -- don't save yet
   if not win then return end
-  
-  if dir == "left" then
-      frame.x = screen.x
-  elseif dir == "right" then
-      frame.x = screen.x + screen.w - frame.w
-  elseif dir == "up" then
-      frame.y = screen.y
-  elseif dir == "down" then
-      frame.y = screen.y + screen.h - frame.h
+
+  -- Check if already at target edge
+  local atEdge = (dir == "left" and frame.x <= screen.x) or
+                 (dir == "right" and frame.x + frame.w >= screen.x + screen.w) or
+                 (dir == "up" and frame.y <= screen.y) or
+                 (dir == "down" and frame.y + frame.h >= screen.y + screen.h)
+
+  if atEdge and spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
+    -- Restore previous position
+    local lastPos = spoon.WinWin._lastPositions[1]
+    if dir == "left" or dir == "right" then
+      frame.x = lastPos.x or frame.x
+    else
+      frame.y = lastPos.y or frame.y
+    end
+  else
+    -- Save current position, then move to edge
+    setupWindowOperation(true)
+    if dir == "left" then
+        frame.x = screen.x
+    elseif dir == "right" then
+        frame.x = screen.x + screen.w - frame.w
+    elseif dir == "up" then
+        frame.y = screen.y
+    elseif dir == "down" then
+        frame.y = screen.y + screen.h - frame.h
+    end
   end
-  
+
   win:setFrame(frame)
 end
 
--- Resize window to edge
+-- Resize window to edge (or restore if already at edge)
 local function resizeToEdge(dir)
-  local win, frame, screen = setupWindowOperation()
+  local win, frame, screen = setupWindowOperation(false)  -- don't save yet
   if not win then return end
-  
-  if dir == "left" then
-      -- Move to right edge first, then resize left
-      frame.x = screen.x + screen.w - frame.w
-      win:setFrame(frame)
-      frame.w = frame.w + frame.x - screen.x
-      frame.x = screen.x
-  elseif dir == "right" then
-      frame.w = screen.x + screen.w - frame.x
-  elseif dir == "up" then
-      -- Move to bottom edge first, then resize up
-      frame.y = screen.y + screen.h - frame.h
-      win:setFrame(frame)
-      frame.h = frame.h + frame.y - screen.y
-      frame.y = screen.y
-  elseif dir == "down" then
-      frame.h = screen.y + screen.h - frame.y
+
+  -- Check if already extends to target edge
+  local atEdge = (dir == "left" and frame.x <= screen.x) or
+                 (dir == "right" and frame.x + frame.w >= screen.x + screen.w) or
+                 (dir == "up" and frame.y <= screen.y) or
+                 (dir == "down" and frame.y + frame.h >= screen.y + screen.h)
+
+  if atEdge and spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
+    -- Restore previous size/position
+    local lastPos = spoon.WinWin._lastPositions[1]
+    if dir == "left" or dir == "right" then
+      frame.x = lastPos.x or frame.x
+      frame.w = lastPos.w or frame.w
+    else
+      frame.y = lastPos.y or frame.y
+      frame.h = lastPos.h or frame.h
+    end
+  else
+    -- Save current position, then resize to edge
+    setupWindowOperation(true)
+    if dir == "left" then
+        -- Move to right edge first, then resize left
+        frame.x = screen.x + screen.w - frame.w
+        win:setFrame(frame)
+        frame.w = frame.w + frame.x - screen.x
+        frame.x = screen.x
+    elseif dir == "right" then
+        frame.w = screen.x + screen.w - frame.x
+    elseif dir == "up" then
+        -- Move to bottom edge first, then resize up
+        frame.y = screen.y + screen.h - frame.h
+        win:setFrame(frame)
+        frame.h = frame.h + frame.y - screen.y
+        frame.y = screen.y
+    elseif dir == "down" then
+        frame.h = screen.y + screen.h - frame.y
+    end
   end
-  
+
   win:setFrame(frame)
 end
 

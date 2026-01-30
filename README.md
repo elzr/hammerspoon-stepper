@@ -2,6 +2,15 @@
 
 Window management with smart edge-aware resizing using fn + arrow key combinations.
 
+## Philosophy
+
+Stepper is built around **interactive steps, not preset sizes**. Instead of snapping to halves, thirds, or other fixed layouts, you build window arrangements through small, reversible increments.
+
+- **Piecemeal**: Each keypress makes a small change. Repeat to continue.
+- **Reversible**: Every action can be undone by the opposite action.
+- **No presets**: No half-screen, no maximize, no memorized layouts. Just steps.
+- **Edge-aware**: Windows "stick" to edges and behave intelligently at boundaries.
+
 ## Key Bindings
 
 All bindings use **fn + modifier + arrow keys** (Home/End/PageUp/PageDown):
@@ -36,19 +45,22 @@ The smart resize adapts based on which screen edges the window is touching.
 | **At bottom edge only** | shrink from top | grow downward |
 | **Middle** (no edge) | shrink from bottom | grow downward |
 
-### Design Philosophy
+### Why This Complexity?
 
-- **Edge-aware**: When a window is "stuck" at an edge, resizing keeps it stuck there
-- **Reversible**: Each direction can undo the other's action
-- **No screen jumping**: Full-size windows won't accidentally move to another screen
+Without this logic, resizing a window that fills the screen would push it to another monitor. The smart resize ensures:
+- Windows "stuck" at an edge stay stuck while resizing
+- Each direction can undo the other's action
+- Full-size windows won't accidentally jump to another screen
 
 ## Other Operations
 
 ### Move to Edge (fn + ctrl + arrows)
 Moves the window to touch the specified screen edge without resizing.
+**Reversible**: Press again when already at that edge to restore previous position.
 
 ### Resize to Edge (fn + ctrl + shift + arrows)
 Expands the window to fill from its current position to the specified edge.
+**Reversible**: Press again when already at that edge to restore previous size.
 
 ### Shrink/Unshrink (fn + option + arrows)
 - **left/up**: Shrink to minimum width/height
