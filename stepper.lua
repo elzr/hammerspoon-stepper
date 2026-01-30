@@ -89,22 +89,38 @@ local function smartStepResize(dir)
   local right_edge = screen.x + screen.w - frame.w
   
   if dir == "left" then
-    if frame.x >= right_edge then --SHRINK resize as if STUCK at edge
+    if frame.x <= screen.x and frame.x < right_edge then --REVERT resize to GROW from left edge
+      stepResize("right")
+      return
+    end
+    if frame.x >= right_edge then --SHRINK resize as if STUCK at right edge
       stepResize("left")
       stepMove("right")
       return
     end
   elseif dir == "right" then
+    if frame.x <= screen.x then --SHRINK resize as if STUCK at left edge
+      stepResize("left")
+      return
+    end
     if frame.x >= right_edge then --REVERT resize to GROW from edge
       stepMove("left")
     end
   elseif dir == "up" then
-    if frame.y >= bottom_edge then --SHRINK resize as if STUCK at edge
+    if frame.y <= screen.y and frame.y < bottom_edge then --REVERT resize to GROW from top edge
+      stepResize("down")
+      return
+    end
+    if frame.y >= bottom_edge then --SHRINK resize as if STUCK at bottom edge
       stepResize("up")
       stepMove("down")
       return
     end
   elseif dir == "down" then
+    if frame.y <= screen.y then --SHRINK resize as if STUCK at top edge
+      stepResize("up")
+      return
+    end
     if frame.y >= bottom_edge then --REVERT resize to GROW from edge
       stepMove("up")
     end
