@@ -23,7 +23,7 @@ All bindings use **fn + modifier + arrow keys** (Home/End/PageUp/PageDown):
 | **ctrl** | Move to edge | fn + ctrl + arrows |
 | **ctrl+shift** | Resize to edge | fn + ctrl + shift + arrows |
 | **option** | Shrink/unshrink | fn + option + arrows |
-| **ctrl+option** | Center/maximize toggle | fn + ctrl + option + up/down |
+| **ctrl+option** | Center/maximize/focus | fn + ctrl + option + arrows |
 
 ## Smart Resize Behavior (fn + shift + arrows)
 
@@ -77,6 +77,11 @@ Progressive centering:
 ### Maximize Toggle (fn + ctrl + option + down)
 - Press to maximize window to fill screen
 - Press again to restore previous size and position
+
+### Focus Direction (fn + ctrl + option + left/right)
+Focus the nearest window in that direction (on the same screen):
+- **left**: focus window whose left edge is left of current window's left edge
+- **right**: focus window whose left edge is right of current window's left edge
 
 ## Mouse Drag
 

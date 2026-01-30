@@ -278,6 +278,41 @@ local function toggleCenter()
   win:setFrame(frame)
 end
 
+-- Focus window in direction (on same screen)
+local function focusDirection(dir)
+  local win = hs.window.focusedWindow()
+  if not win then return end
+
+  local currentFrame = win:frame()
+  local currentScreen = win:screen()
+  local windows = hs.window.orderedWindows()
+
+  local candidates = {}
+  for _, w in ipairs(windows) do
+    if w ~= win and w:isStandard() and w:screen() == currentScreen then
+      local frame = w:frame()
+      if dir == "left" and frame.x < currentFrame.x then
+        table.insert(candidates, {win = w, x = frame.x})
+      elseif dir == "right" and frame.x > currentFrame.x then
+        table.insert(candidates, {win = w, x = frame.x})
+      end
+    end
+  end
+
+  if #candidates == 0 then return end
+
+  -- Sort: for left, pick rightmost (closest); for right, pick leftmost (closest)
+  table.sort(candidates, function(a, b)
+    if dir == "left" then
+      return a.x > b.x  -- descending (rightmost first)
+    else
+      return a.x < b.x  -- ascending (leftmost first)
+    end
+  end)
+
+  candidates[1].win:focus()
+end
+
 local function bindWithRepeat(mods, key, fn)
     hs.hotkey.bind(mods, key, fn, nil, fn)
 end
@@ -311,6 +346,8 @@ end
 -- Special bindings for ctrl+option
 bindWithRepeat({"ctrl", "option"}, "pageup", toggleCenter)
 bindWithRepeat({"ctrl", "option"}, "pagedown", toggleMaximize)
+bindWithRepeat({"ctrl", "option"}, "home", function() focusDirection("left") end)
+bindWithRepeat({"ctrl", "option"}, "end", function() focusDirection("right") end)
 
 -- =============================================================================
 -- Mouse drag to move window under cursor (Cmd+Option+Ctrl + mouse move)
