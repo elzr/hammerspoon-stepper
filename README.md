@@ -37,6 +37,8 @@ All bindings use **fn + modifier + arrow keys** (Home/End/PageUp/PageDown):
 | **ctrl+option** | Focus direction | fn + ctrl + option + arrows |
 | **ctrl+option+cmd** | Focus across screens | fn + ctrl + option + cmd + arrows |
 | **shift+option** | Center/maximize toggle | fn + shift + option + up/down |
+| **shift+option** | Half/third cycle | fn + shift + option + left/right |
+| **cmd** | Compact/expand toggles | fn + cmd + arrows |
 
 ## Smart Resize Behavior (fn + shift + arrows)
 
@@ -103,6 +105,31 @@ Progressive centering:
 ### Maximize Toggle (fn + shift + option + down)
 - Press to maximize window to fill screen
 - Press again to restore previous size and position
+
+### Half/Third Cycle (fn + shift + option + left/right)
+Cycle through edge-aligned layouts:
+1. First press: half-width, full-height, aligned to that edge
+2. Second press: third-width, full-height, aligned to that edge
+3. Third press: restore previous size and position
+
+### Compact Mode (fn + cmd + left)
+Shrink window to a small size and dock it at the bottom of the screen.
+- Works like a minimized dock: windows line up left-to-right at the screen bottom
+- Each new compact window appears to the right of existing ones
+- Wraps to the row above when the bottom row is full
+- Press again to restore original size and position
+- App-specific minimum sizes are respected (see `minShrinkSize` in config)
+
+### Max Height (fn + cmd + up)
+Expand window to full screen height while keeping width and horizontal position.
+**Reversible**: Press again to restore previous height.
+
+### Max Width (fn + cmd + right)
+Expand window to full screen width while keeping height and vertical position.
+**Reversible**: Press again to restore previous width.
+
+### Native Fullscreen (fn + cmd + down)
+Toggle macOS native fullscreen mode (with the green button animation).
 
 ## Mouse Drag
 

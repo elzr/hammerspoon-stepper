@@ -52,5 +52,11 @@ The project uses a consistent modifier escalation pattern:
 - ctrl: snap to edge
 - ctrl+shift: resize to edge
 - option: shrink/unshrink
+- shift+option: center/maximize/half-third toggles
 - ctrl+option: focus window on same screen
 - ctrl+option+cmd: focus window on adjacent screen
+- cmd: compact/max-height/max-width/fullscreen toggles
+
+## Documentation
+
+**Important**: When adding or changing key bindings or user-facing behavior, always update README.md to reflect the changes. The README serves as the user-facing documentation for all operations.

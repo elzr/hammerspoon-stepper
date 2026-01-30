@@ -50,8 +50,11 @@ local minShrinkSize = {
 -- Default compact size for PiP mode
 local defaultCompactSize = {w = 400, h = 300}
 
--- Track original frames of compact windows for restore
+-- Track compact windows: {winID = {original = frame, screenID = id}}
 local compactWindows = {}
+
+-- Forward declaration for edge highlight (defined later with other visual feedback)
+local flashEdgeHighlight
 
 -- Clear existing hotkeys
 local existingHotkeys = hs.hotkey.getHotkeys()
@@ -111,6 +114,7 @@ local function moveToEdge(dir)
   else
     -- Save current position, then move to edge
     setupWindowOperation(true)
+    flashEdgeHighlight(screen, dir)
     if dir == "left" then
         frame.x = screen.x
     elseif dir == "right" then
@@ -149,6 +153,7 @@ local function resizeToEdge(dir)
   else
     -- Save current position, then resize to edge (single step)
     setupWindowOperation(true)
+    flashEdgeHighlight(screen, dir)
     if dir == "left" then
         -- Expand to left edge, keeping right edge fixed
         frame.w = frame.x + frame.w - screen.x
@@ -177,38 +182,46 @@ local function smartStepResize(dir)
   
   if dir == "left" then
     if frame.x <= screen.x and frame.x < right_edge then --REVERT resize to GROW from left edge
+      flashEdgeHighlight(screen, "left")
       stepResize("right")
       return
     end
     if frame.x >= right_edge then --SHRINK resize as if STUCK at right edge
+      flashEdgeHighlight(screen, "right")
       stepResize("left")
       stepMove("right")
       return
     end
   elseif dir == "right" then
     if frame.x <= screen.x then --SHRINK resize as if STUCK at left edge
+      flashEdgeHighlight(screen, "left")
       stepResize("left")
       return
     end
     if frame.x >= right_edge then --REVERT resize to GROW from edge
+      flashEdgeHighlight(screen, "right")
       stepMove("left")
     end
   elseif dir == "up" then
     if frame.y <= screen.y and frame.y < bottom_edge then --REVERT resize to GROW from top edge
+      flashEdgeHighlight(screen, "up")
       stepResize("down")
       return
     end
     if frame.y >= bottom_edge then --SHRINK resize as if STUCK at bottom edge
+      flashEdgeHighlight(screen, "down")
       stepResize("up")
       stepMove("down")
       return
     end
   elseif dir == "down" then
     if frame.y <= screen.y then --SHRINK resize as if STUCK at top edge
+      flashEdgeHighlight(screen, "up")
       stepResize("up")
       return
     end
     if frame.y >= bottom_edge then --REVERT resize to GROW from edge
+      flashEdgeHighlight(screen, "down")
       stepMove("up")
     end
   end
@@ -408,6 +421,7 @@ local function toggleMaxHeight()
   else
     -- Save current position, then maximize height
     setupWindowOperation(true)
+    flashEdgeHighlight(screen, {"up", "down"})
     frame.y = screen.y
     frame.h = screen.h
   end
@@ -438,6 +452,7 @@ local function toggleMaxWidth()
   else
     -- Save current position, then maximize width
     setupWindowOperation(true)
+    flashEdgeHighlight(screen, {"left", "right"})
     frame.x = screen.x
     frame.w = screen.w
   end
@@ -446,24 +461,24 @@ local function toggleMaxWidth()
 end
 
 -- Toggle compact/PiP mode (shrink to min size, stack at bottom of screen)
+-- Works like a dock: compacted windows line up from left to right at screen bottom
 local function toggleCompact()
   local win = hs.window.focusedWindow()
   if not win then return end
 
   local winID = win:id()
   local frame = win:frame()
-  local screen = win:screen():frame()
+  local screenObj = win:screen()
+  local screen = screenObj:frame()
+  local currentScreenID = screenObj:id()
 
   -- Check if this window is already compact (has saved original frame)
   if compactWindows[winID] then
     -- Restore original frame
-    instant(function() win:setFrame(compactWindows[winID]) end)
+    instant(function() win:setFrame(compactWindows[winID].original) end)
     compactWindows[winID] = nil
     return
   end
-
-  -- Save original frame before compacting
-  compactWindows[winID] = {x = frame.x, y = frame.y, w = frame.w, h = frame.h}
 
   -- Get compact size (app-specific or default)
   local appName = win:application():name():lower()
@@ -471,57 +486,70 @@ local function toggleCompact()
   local compactW = compactSize.w
   local compactH = compactSize.h
 
-  -- Find occupied slots at bottom of screen (other compact windows)
-  local currentScreenID = win:screen():id()
-  local windows = hs.window.orderedWindows()
-  local occupiedSlots = {}  -- {x = ..., row = ...}
+  -- Clean up stale entries and collect valid compact windows on this screen by row
+  -- Row 0 = bottom, Row 1 = one up, etc.
+  local rows = {}  -- rows[rowNum] = sorted list of {x, rightEdge}
+  local staleIDs = {}
 
-  for _, w in ipairs(windows) do
-    if w:id() ~= winID and w:isStandard() and w:screen():id() == currentScreenID then
-      local wf = w:frame()
-      -- Check if window is at bottom of screen (within tolerance)
-      local atBottom = math.abs((wf.y + wf.h) - (screen.y + screen.h)) < 10
-      local isSmall = wf.w <= compactW + 50 and wf.h <= compactH + 50
-      if atBottom and isSmall then
-        -- Calculate which row this window is in (0 = bottom row)
-        local row = math.floor((screen.y + screen.h - wf.y - wf.h + 5) / compactH)
-        table.insert(occupiedSlots, {x = wf.x, w = wf.w, row = row})
-      end
+  for otherWinID, info in pairs(compactWindows) do
+    local otherWin = hs.window.get(otherWinID)
+    if not otherWin or not otherWin:isVisible() then
+      -- Window no longer exists or is hidden - mark for cleanup
+      table.insert(staleIDs, otherWinID)
+    elseif info.screenID == currentScreenID then
+      -- Valid compact window on this screen
+      local otherFrame = otherWin:frame()
+      -- Determine row based on y position (bottom of screen = row 0)
+      local bottomY = screen.y + screen.h
+      local rowNum = math.floor((bottomY - otherFrame.y - otherFrame.h + compactH/2) / compactH)
+      if rowNum < 0 then rowNum = 0 end
+
+      if not rows[rowNum] then rows[rowNum] = {} end
+      table.insert(rows[rowNum], {
+        x = otherFrame.x,
+        rightEdge = otherFrame.x + otherFrame.w
+      })
     end
   end
 
-  -- Find first available slot, starting from bottom-left, wrapping to next row
+  -- Remove stale entries
+  for _, id in ipairs(staleIDs) do
+    compactWindows[id] = nil
+  end
+
+  -- Sort each row by x position
+  for rowNum, rowWindows in pairs(rows) do
+    table.sort(rowWindows, function(a, b) return a.x < b.x end)
+  end
+
+  -- Find placement: start at row 0, find the rightmost edge, place after it
+  -- If row is full, go to next row
+  local maxX = screen.x + screen.w - compactW
   local slotX = screen.x
   local slotRow = 0
-  local maxX = screen.x + screen.w - compactW
 
-  while true do
-    local slotOccupied = false
-    for _, slot in ipairs(occupiedSlots) do
-      if slot.row == slotRow then
-        -- Check if this slot overlaps
-        local slotEnd = slotX + compactW
-        local occEnd = slot.x + slot.w
-        if not (slotEnd <= slot.x or slotX >= occEnd) then
-          -- Overlap - move past this window
-          slotX = slot.x + slot.w
-          slotOccupied = true
-          break
+  for rowNum = 0, 10 do  -- Check up to 10 rows
+    local rowWindows = rows[rowNum]
+    if not rowWindows or #rowWindows == 0 then
+      -- Empty row - start at left edge
+      slotX = screen.x
+      slotRow = rowNum
+      break
+    else
+      -- Find rightmost edge in this row
+      local rightmost = screen.x
+      for _, w in ipairs(rowWindows) do
+        if w.rightEdge > rightmost then
+          rightmost = w.rightEdge
         end
       end
-    end
-
-    if not slotOccupied then
-      -- Found a free slot
-      break
-    end
-
-    -- Check if we need to wrap to next row
-    if slotX > maxX then
-      slotX = screen.x
-      slotRow = slotRow + 1
-      -- Safety: don't go more than 3 rows up
-      if slotRow > 3 then break end
+      -- Check if there's room for another window
+      if rightmost <= maxX then
+        slotX = rightmost
+        slotRow = rowNum
+        break
+      end
+      -- Row is full, try next row
     end
   end
 
@@ -533,7 +561,78 @@ local function toggleCompact()
     h = compactH
   }
 
+  -- Save original frame and screen before compacting
+  compactWindows[winID] = {
+    original = {x = frame.x, y = frame.y, w = frame.w, h = frame.h},
+    screenID = currentScreenID
+  }
+
+  flashEdgeHighlight(screen, {"down", "left"})
   instant(function() win:setFrame(newFrame) end)
+end
+
+-- Flash a thick blue border on the screen edge(s)
+-- dir can be a single direction ("left") or a table of directions ({"left", "right"})
+local edgeHighlight = nil
+flashEdgeHighlight = function(screen, dir)
+  if edgeHighlight then
+    edgeHighlight:delete()
+    edgeHighlight = nil
+  end
+
+  local thick = 12
+  local color = {red = 0.4, green = 0.7, blue = 1.0, alpha = 0.9}
+
+  -- Normalize to table of directions
+  local dirs = type(dir) == "table" and dir or {dir}
+
+  -- Create full-screen canvas to hold all edge lines
+  edgeHighlight = hs.canvas.new({x = screen.x, y = screen.y, w = screen.w, h = screen.h})
+
+  for _, d in ipairs(dirs) do
+    local lineCoords
+    if d == "left" then
+      lineCoords = {
+        {x = thick / 2, y = 0},
+        {x = thick / 2, y = screen.h}
+      }
+    elseif d == "right" then
+      lineCoords = {
+        {x = screen.w - thick / 2, y = 0},
+        {x = screen.w - thick / 2, y = screen.h}
+      }
+    elseif d == "up" then
+      lineCoords = {
+        {x = 0, y = thick / 2},
+        {x = screen.w, y = thick / 2}
+      }
+    elseif d == "down" then
+      lineCoords = {
+        {x = 0, y = screen.h - thick / 2},
+        {x = screen.w, y = screen.h - thick / 2}
+      }
+    end
+
+    if lineCoords then
+      edgeHighlight:appendElements({
+        type = "segments",
+        action = "stroke",
+        strokeColor = color,
+        strokeWidth = thick,
+        strokeCapStyle = "butt",
+        coordinates = lineCoords
+      })
+    end
+  end
+
+  edgeHighlight:show()
+
+  hs.timer.doAfter(0.3, function()
+    if edgeHighlight then
+      edgeHighlight:delete()
+      edgeHighlight = nil
+    end
+  end)
 end
 
 -- Flash a border around a window to highlight it (thicker on the focus direction side)
