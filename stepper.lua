@@ -529,6 +529,12 @@ bindWithRepeat({"ctrl", "option", "cmd"}, "end", function() focusScreen("right")
 bindWithRepeat({"ctrl", "option", "cmd"}, "pageup", function() focusScreen("up") end)
 bindWithRepeat({"ctrl", "option", "cmd"}, "pagedown", function() focusScreen("down") end)
 
+-- Show focus highlight on current window (fn+ctrl+option+delete = forwarddelete)
+hs.hotkey.bind({"ctrl", "option"}, "forwarddelete", function()
+  local win = hs.window.focusedWindow()
+  if win then flashFocusHighlight(win, nil) end
+end)
+
 -- =============================================================================
 -- Mouse drag to move window under cursor (Cmd+Option+Ctrl + mouse move)
 -- =============================================================================
