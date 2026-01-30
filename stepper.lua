@@ -427,6 +427,62 @@ local function focusDirection(dir)
   flashFocusHighlight(targetWin, dir)
 end
 
+-- Focus window on adjacent screen (focusing the window closest to where you came from)
+local function focusScreen(dir)
+  local win = hs.window.focusedWindow()
+  local currentScreen = win and win:screen() or hs.mouse.getCurrentScreen()
+  if not currentScreen then return end
+
+  -- Find the screen in the given direction
+  local targetScreen
+  if dir == "left" then
+    targetScreen = currentScreen:toWest()
+  elseif dir == "right" then
+    targetScreen = currentScreen:toEast()
+  elseif dir == "up" then
+    targetScreen = currentScreen:toNorth()
+  elseif dir == "down" then
+    targetScreen = currentScreen:toSouth()
+  end
+
+  if not targetScreen then return end  -- No screen in that direction
+
+  local targetScreenID = targetScreen:id()
+  local windows = hs.window.orderedWindows()
+
+  -- Collect all standard windows on the target screen
+  local screenWindows = {}
+  for _, w in ipairs(windows) do
+    if w:isStandard() and w:screen():id() == targetScreenID then
+      local frame = w:frame()
+      table.insert(screenWindows, {win = w, frame = frame})
+    end
+  end
+
+  if #screenWindows == 0 then return end  -- No windows on target screen
+
+  -- Sort by "closeness to where we came from"
+  -- left: want rightmost right edge (frame.x + frame.w, descending)
+  -- right: want leftmost left edge (frame.x, ascending)
+  -- up: want bottommost bottom edge (frame.y + frame.h, descending)
+  -- down: want topmost top edge (frame.y, ascending)
+  table.sort(screenWindows, function(a, b)
+    if dir == "left" then
+      return (a.frame.x + a.frame.w) > (b.frame.x + b.frame.w)
+    elseif dir == "right" then
+      return a.frame.x < b.frame.x
+    elseif dir == "up" then
+      return (a.frame.y + a.frame.h) > (b.frame.y + b.frame.h)
+    elseif dir == "down" then
+      return a.frame.y < b.frame.y
+    end
+  end)
+
+  local targetWin = screenWindows[1].win
+  targetWin:focus()
+  flashFocusHighlight(targetWin, dir)
+end
+
 local function bindWithRepeat(mods, key, fn)
     hs.hotkey.bind(mods, key, fn, nil, fn)
 end
@@ -466,6 +522,12 @@ bindWithRepeat({"ctrl", "option"}, "pagedown", function() focusDirection("down")
 -- Special bindings for shift+option (center/maximize)
 bindWithRepeat({"shift", "option"}, "pageup", toggleCenter)
 bindWithRepeat({"shift", "option"}, "pagedown", toggleMaximize)
+
+-- Special bindings for ctrl+option+cmd (focus across screens)
+bindWithRepeat({"ctrl", "option", "cmd"}, "home", function() focusScreen("left") end)
+bindWithRepeat({"ctrl", "option", "cmd"}, "end", function() focusScreen("right") end)
+bindWithRepeat({"ctrl", "option", "cmd"}, "pageup", function() focusScreen("up") end)
+bindWithRepeat({"ctrl", "option", "cmd"}, "pagedown", function() focusScreen("down") end)
 
 -- =============================================================================
 -- Mouse drag to move window under cursor (Cmd+Option+Ctrl + mouse move)

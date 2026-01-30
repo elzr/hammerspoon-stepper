@@ -35,6 +35,7 @@ All bindings use **fn + modifier + arrow keys** (Home/End/PageUp/PageDown):
 | **ctrl+shift** | Resize to edge | fn + ctrl + shift + arrows |
 | **option** | Shrink/unshrink | fn + option + arrows |
 | **ctrl+option** | Focus direction | fn + ctrl + option + arrows |
+| **ctrl+option+cmd** | Focus across screens | fn + ctrl + option + cmd + arrows |
 | **shift+option** | Center/maximize toggle | fn + shift + option + up/down |
 
 ## Smart Resize Behavior (fn + shift + arrows)
@@ -84,6 +85,14 @@ Expands the window to fill from its current position to the specified edge.
 Focus the nearest window in that direction (on the same screen):
 - **left/right**: based on window's left edge (x position)
 - **up/down**: based on window's top edge (y position)
+- Wraps around: keep pressing to cycle through all windows on the screen
+
+### Focus Across Screens (fn + ctrl + option + cmd + arrows)
+Jump to an adjacent screen, focusing the window closest to where you came from:
+- **left**: go to left screen, focus window with rightmost edge
+- **right**: go to right screen, focus window with leftmost edge
+- **up**: go to upper screen, focus window with bottommost edge
+- **down**: go to lower screen, focus window with topmost edge
 
 ### Center Toggle (fn + shift + option + up)
 Progressive centering:
