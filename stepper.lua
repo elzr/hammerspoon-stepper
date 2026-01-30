@@ -1,13 +1,57 @@
-hs.window.animationDuration = 0  -- Instant window operations, no animation
-
 hs.loadSpoon("WinWin")
-local stepMove = function(dir) spoon.WinWin:stepMove(dir) end
-local stepResize = function(dir) spoon.WinWin:stepResize(dir) end
+
+-- Adaptive animation: luxurious by default, snappy when rapidly iterating
+local luxuriousDuration = 0.3
+local snappyDuration = 0.1
+local rapidThreshold = 0.4  -- seconds between operations to trigger snappy mode
+local lastOperationTime = 0
+local animationLocked = false
+
+local function updateAnimationDuration()
+  local now = hs.timer.secondsSinceEpoch()
+  local elapsed = now - lastOperationTime
+  lastOperationTime = now
+
+  if animationLocked then return end
+
+  if elapsed < rapidThreshold then
+    hs.window.animationDuration = snappyDuration
+  else
+    hs.window.animationDuration = luxuriousDuration
+  end
+end
+
+-- Helper for instant (non-animated) window operations
+local function instant(fn)
+  updateAnimationDuration()  -- Track timing even for instant ops
+  local original = hs.window.animationDuration
+  animationLocked = true
+  hs.window.animationDuration = 0
+  fn()
+  animationLocked = false
+  hs.window.animationDuration = original
+end
+
+local function stepMove(dir)
+  updateAnimationDuration()
+  spoon.WinWin:stepMove(dir)
+end
+
+local function stepResize(dir)
+  updateAnimationDuration()
+  spoon.WinWin:stepResize(dir)
+end
 
 -- Minimum shrink sizes for specific apps (add more as needed)
 local minShrinkSize = {
   kitty = {w = 900, h = 400},
 }
+
+-- Default compact size for PiP mode
+local defaultCompactSize = {w = 400, h = 300}
+
+-- Track original frames of compact windows for restore
+local compactWindows = {}
 
 -- Clear existing hotkeys
 local existingHotkeys = hs.hotkey.getHotkeys()
@@ -78,7 +122,7 @@ local function moveToEdge(dir)
     end
   end
 
-  win:setFrame(frame)
+  instant(function() win:setFrame(frame) end)
 end
 
 -- Resize window to edge (or restore if already at edge)
@@ -122,7 +166,7 @@ local function resizeToEdge(dir)
     end
   end
 
-  win:setFrame(frame)
+  instant(function() win:setFrame(frame) end)
 end
 
 local function smartStepResize(dir)
@@ -174,69 +218,56 @@ local function smartStepResize(dir)
 end
 
 local function shrink(dir)
-  -- Don't save state when unshrinking right or down
-  local shouldSave = dir ~= "right" and dir ~= "down"
-  local win, frame, screen = setupWindowOperation(shouldSave)
-  if not win then return end
+  instant(function()
+    -- Don't save state when unshrinking right or down
+    local shouldSave = dir ~= "right" and dir ~= "down"
+    local win, frame, screen = setupWindowOperation(shouldSave)
+    if not win then return end
 
-  -- Get app-specific minimum size (if any)
-  local appName = win:application():name():lower()
-  local minSize = minShrinkSize[appName] or {w = 0, h = 0}
+    -- Get app-specific minimum size (if any)
+    local appName = win:application():name():lower()
+    local minSize = minShrinkSize[appName] or {w = 0, h = 0}
 
-  if dir == "left" then -- SHRINK till min width
-    local lastWidth = frame.w
-    for i = 1, 30 do
+    if dir == "left" then -- SHRINK till min width
+      local lastWidth = frame.w
+      for i = 1, 30 do
         stepResize("left")
         local currentWidth = win:frame().w
-        print(string.format("Iteration %d - Width: %d", i, currentWidth))
         if currentWidth == lastWidth or currentWidth <= minSize.w then
-            if currentWidth <= minSize.w then
-                print("App minimum width reached after", i, "iterations")
-            else
-                print("Minimum width reached after", i, "iterations")
-            end
-            break
+          break
         end
         lastWidth = currentWidth
-    end
-  elseif dir == "right" then -- UNSHRINK to original width
-    if spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
+      end
+    elseif dir == "right" then -- UNSHRINK to original width
+      if spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
         local lastPos = spoon.WinWin._lastPositions[1]
         frame.w = lastPos.w
         frame.x = lastPos.x
         win:setFrame(frame)
-    end
-  elseif dir == "up" then -- SHRINK till min height
-    local lastHeight = frame.h
-    for i = 1, 30 do
-      stepResize("up")
-      local currentHeight = win:frame().h
-      print(string.format("Iteration %d - Height: %d", i, currentHeight))
-      if currentHeight == lastHeight or currentHeight <= minSize.h then
-          if currentHeight <= minSize.h then
-              print("App minimum height reached after", i, "iterations")
-          else
-              print("Minimum height reached after", i, "iterations")
-          end
-          break
       end
-      lastHeight = currentHeight
-    end
-  elseif dir == "down" then -- UNSHRINK to original height
-    if spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
+    elseif dir == "up" then -- SHRINK till min height
+      local lastHeight = frame.h
+      for i = 1, 30 do
+        stepResize("up")
+        local currentHeight = win:frame().h
+        if currentHeight == lastHeight or currentHeight <= minSize.h then
+          break
+        end
+        lastHeight = currentHeight
+      end
+    elseif dir == "down" then -- UNSHRINK to original height
+      if spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
         local lastPos = spoon.WinWin._lastPositions[1]
-
         frame.h = lastPos.h
         frame.y = lastPos.y
-
         win:setFrame(frame)
-        return  -- Add return to prevent default behavior
-    else
-      for i = 1, 8 do
-        stepResize("down")
+      else
+        for i = 1, 8 do
+          stepResize("down")
+        end
       end
     end
-  end
+  end)
 end
 
 -- Toggle maximize/restore
@@ -266,7 +297,7 @@ local function toggleMaximize()
     frame.h = screen.h
   end
 
-  win:setFrame(frame)
+  instant(function() win:setFrame(frame) end)
 end
 
 -- Toggle center: vertical first, then horizontal, then restore
@@ -293,7 +324,7 @@ local function toggleCenter()
     frame.y = lastPos.y or frame.y
   end
 
-  win:setFrame(frame)
+  instant(function() win:setFrame(frame) end)
 end
 
 -- Cycle through half/third width aligned to edge (or restore)
@@ -357,7 +388,152 @@ local function cycleHalfThird(dir)
     end
   end
 
-  win:setFrame(frame)
+  instant(function() win:setFrame(frame) end)
+end
+
+-- Toggle max height (keep width/x, expand height to full screen)
+local function toggleMaxHeight()
+  local win, frame, screen = setupWindowOperation(false)
+  if not win then return end
+
+  local tolerance = 10
+  local isMaxHeight = math.abs(frame.y - screen.y) < tolerance and
+                      math.abs(frame.h - screen.h) < tolerance
+
+  if isMaxHeight and spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
+    -- Restore previous height/y
+    local lastPos = spoon.WinWin._lastPositions[1]
+    frame.y = lastPos.y or frame.y
+    frame.h = lastPos.h or frame.h
+  else
+    -- Save current position, then maximize height
+    setupWindowOperation(true)
+    frame.y = screen.y
+    frame.h = screen.h
+  end
+
+  instant(function() win:setFrame(frame) end)
+end
+
+-- Toggle native macOS fullscreen
+local function toggleFullScreen()
+  local win = hs.window.focusedWindow()
+  if win then win:toggleFullScreen() end
+end
+
+-- Toggle max width (keep height/y, expand width to full screen)
+local function toggleMaxWidth()
+  local win, frame, screen = setupWindowOperation(false)
+  if not win then return end
+
+  local tolerance = 10
+  local isMaxWidth = math.abs(frame.x - screen.x) < tolerance and
+                     math.abs(frame.w - screen.w) < tolerance
+
+  if isMaxWidth and spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
+    -- Restore previous width/x
+    local lastPos = spoon.WinWin._lastPositions[1]
+    frame.x = lastPos.x or frame.x
+    frame.w = lastPos.w or frame.w
+  else
+    -- Save current position, then maximize width
+    setupWindowOperation(true)
+    frame.x = screen.x
+    frame.w = screen.w
+  end
+
+  instant(function() win:setFrame(frame) end)
+end
+
+-- Toggle compact/PiP mode (shrink to min size, stack at bottom of screen)
+local function toggleCompact()
+  local win = hs.window.focusedWindow()
+  if not win then return end
+
+  local winID = win:id()
+  local frame = win:frame()
+  local screen = win:screen():frame()
+
+  -- Check if this window is already compact (has saved original frame)
+  if compactWindows[winID] then
+    -- Restore original frame
+    instant(function() win:setFrame(compactWindows[winID]) end)
+    compactWindows[winID] = nil
+    return
+  end
+
+  -- Save original frame before compacting
+  compactWindows[winID] = {x = frame.x, y = frame.y, w = frame.w, h = frame.h}
+
+  -- Get compact size (app-specific or default)
+  local appName = win:application():name():lower()
+  local compactSize = minShrinkSize[appName] or defaultCompactSize
+  local compactW = compactSize.w
+  local compactH = compactSize.h
+
+  -- Find occupied slots at bottom of screen (other compact windows)
+  local currentScreenID = win:screen():id()
+  local windows = hs.window.orderedWindows()
+  local occupiedSlots = {}  -- {x = ..., row = ...}
+
+  for _, w in ipairs(windows) do
+    if w:id() ~= winID and w:isStandard() and w:screen():id() == currentScreenID then
+      local wf = w:frame()
+      -- Check if window is at bottom of screen (within tolerance)
+      local atBottom = math.abs((wf.y + wf.h) - (screen.y + screen.h)) < 10
+      local isSmall = wf.w <= compactW + 50 and wf.h <= compactH + 50
+      if atBottom and isSmall then
+        -- Calculate which row this window is in (0 = bottom row)
+        local row = math.floor((screen.y + screen.h - wf.y - wf.h + 5) / compactH)
+        table.insert(occupiedSlots, {x = wf.x, w = wf.w, row = row})
+      end
+    end
+  end
+
+  -- Find first available slot, starting from bottom-left, wrapping to next row
+  local slotX = screen.x
+  local slotRow = 0
+  local maxX = screen.x + screen.w - compactW
+
+  while true do
+    local slotOccupied = false
+    for _, slot in ipairs(occupiedSlots) do
+      if slot.row == slotRow then
+        -- Check if this slot overlaps
+        local slotEnd = slotX + compactW
+        local occEnd = slot.x + slot.w
+        if not (slotEnd <= slot.x or slotX >= occEnd) then
+          -- Overlap - move past this window
+          slotX = slot.x + slot.w
+          slotOccupied = true
+          break
+        end
+      end
+    end
+
+    if not slotOccupied then
+      -- Found a free slot
+      break
+    end
+
+    -- Check if we need to wrap to next row
+    if slotX > maxX then
+      slotX = screen.x
+      slotRow = slotRow + 1
+      -- Safety: don't go more than 3 rows up
+      if slotRow > 3 then break end
+    end
+  end
+
+  -- Calculate final position
+  local newFrame = {
+    x = slotX,
+    y = screen.y + screen.h - compactH - (slotRow * compactH),
+    w = compactW,
+    h = compactH
+  }
+
+  instant(function() win:setFrame(newFrame) end)
 end
 
 -- Flash a border around a window to highlight it (thicker on the focus direction side)
@@ -612,6 +788,12 @@ bindWithRepeat({"ctrl", "option", "cmd"}, "home", function() focusScreen("left")
 bindWithRepeat({"ctrl", "option", "cmd"}, "end", function() focusScreen("right") end)
 bindWithRepeat({"ctrl", "option", "cmd"}, "pageup", function() focusScreen("up") end)
 bindWithRepeat({"ctrl", "option", "cmd"}, "pagedown", function() focusScreen("down") end)
+
+-- Special bindings for cmd (max height/width, fullscreen, compact)
+hs.hotkey.bind({"cmd"}, "pageup", toggleMaxHeight)
+hs.hotkey.bind({"cmd"}, "pagedown", toggleFullScreen)
+hs.hotkey.bind({"cmd"}, "end", toggleMaxWidth)
+hs.hotkey.bind({"cmd"}, "home", toggleCompact)
 
 -- Show focus highlight on current window (fn+ctrl+option+delete = forwarddelete)
 hs.hotkey.bind({"ctrl", "option"}, "forwarddelete", function()
