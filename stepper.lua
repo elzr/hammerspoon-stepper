@@ -4,6 +4,11 @@ hs.loadSpoon("WinWin")
 local stepMove = function(dir) spoon.WinWin:stepMove(dir) end
 local stepResize = function(dir) spoon.WinWin:stepResize(dir) end
 
+-- Minimum shrink sizes for specific apps (add more as needed)
+local minShrinkSize = {
+  kitty = {w = 900, h = 400},
+}
+
 -- Clear existing hotkeys
 local existingHotkeys = hs.hotkey.getHotkeys()
 for _, hotkey in ipairs(existingHotkeys) do
@@ -173,15 +178,24 @@ local function shrink(dir)
   local shouldSave = dir ~= "right" and dir ~= "down"
   local win, frame, screen = setupWindowOperation(shouldSave)
   if not win then return end
+
+  -- Get app-specific minimum size (if any)
+  local appName = win:application():name():lower()
+  local minSize = minShrinkSize[appName] or {w = 0, h = 0}
+
   if dir == "left" then -- SHRINK till min width
     local lastWidth = frame.w
     for i = 1, 30 do
         stepResize("left")
         local currentWidth = win:frame().w
         print(string.format("Iteration %d - Width: %d", i, currentWidth))
-        if currentWidth == lastWidth then
-            print("Minimum width reached after", i, "iterations")
-            break  -- Window stopped resizing, we've hit the minimum
+        if currentWidth == lastWidth or currentWidth <= minSize.w then
+            if currentWidth <= minSize.w then
+                print("App minimum width reached after", i, "iterations")
+            else
+                print("Minimum width reached after", i, "iterations")
+            end
+            break
         end
         lastWidth = currentWidth
     end
@@ -198,19 +212,23 @@ local function shrink(dir)
       stepResize("up")
       local currentHeight = win:frame().h
       print(string.format("Iteration %d - Height: %d", i, currentHeight))
-      if currentHeight == lastHeight then
-          print("Minimum height reached after", i, "iterations")
-          break  -- Window stopped resizing, we've hit the minimum
+      if currentHeight == lastHeight or currentHeight <= minSize.h then
+          if currentHeight <= minSize.h then
+              print("App minimum height reached after", i, "iterations")
+          else
+              print("Minimum height reached after", i, "iterations")
+          end
+          break
       end
       lastHeight = currentHeight
     end
   elseif dir == "down" then -- UNSHRINK to original height
     if spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
         local lastPos = spoon.WinWin._lastPositions[1]
-        
+
         frame.h = lastPos.h
         frame.y = lastPos.y
-        
+
         win:setFrame(frame)
         return  -- Add return to prevent default behavior
     else
