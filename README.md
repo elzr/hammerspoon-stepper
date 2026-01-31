@@ -90,6 +90,7 @@ Focus the nearest window in that direction (on the same screen):
 - **left/right**: based on window's left edge (x position)
 - **up/down**: based on window's top edge (y position)
 - Wraps around: keep pressing to cycle through all windows on the screen
+- **Skips hidden windows**: Windows fully covered by other windows are excluded
 
 ### Focus Across Screens (fn + ctrl + option + cmd + arrows)
 Jump to an adjacent screen, focusing the window closest to where you came from:
@@ -97,6 +98,7 @@ Jump to an adjacent screen, focusing the window closest to where you came from:
 - **right**: go to right screen, focus window with leftmost edge
 - **up**: go to upper screen, focus window with bottommost edge
 - **down**: go to lower screen, focus window with topmost edge
+- **Skips hidden windows**: Windows fully covered by other windows are excluded
 
 ### Center Toggle (fn + shift + option + up)
 Progressive centering:
