@@ -800,9 +800,9 @@ local function flashFocusHighlight(win, dir)
   end)
 end
 
--- Check if a window has at least some visible portion (not fully occluded by windows above it)
-local function isWindowVisible(win, windowsAbove)
-  local frame = win:frame()
+-- Check if a window frame has at least some visible portion (not fully occluded by frames above it)
+-- Takes pre-cached frames to avoid repeated API calls
+local function isFrameVisible(frame, framesAbove)
   -- Check 5 points: 4 corners (inset by 5px) + center
   local checkPoints = {
     {x = frame.x + 5, y = frame.y + 5},                           -- top-left
@@ -814,8 +814,7 @@ local function isWindowVisible(win, windowsAbove)
 
   for _, point in ipairs(checkPoints) do
     local covered = false
-    for _, above in ipairs(windowsAbove) do
-      local af = above:frame()
+    for _, af in ipairs(framesAbove) do
       if point.x >= af.x and point.x <= af.x + af.w and
          point.y >= af.y and point.y <= af.y + af.h then
         covered = true
@@ -834,27 +833,29 @@ local function focusDirection(dir)
 
   local currentScreen = win:screen()
   local currentScreenID = currentScreen:id()
+
   local windows = hs.window.orderedWindows()
 
   -- Collect all standard windows on the same screen (in z-order, front to back)
+  -- Cache frames upfront to avoid repeated API calls in occlusion check
   local screenWindows = {}
   for _, w in ipairs(windows) do
     if w:isStandard() and w:screen():id() == currentScreenID then
       local frame = w:frame()
       local pos = (dir == "left" or dir == "right") and frame.x or frame.y
-      table.insert(screenWindows, {win = w, pos = pos})
+      table.insert(screenWindows, {win = w, frame = frame, pos = pos})
     end
   end
 
-  -- Filter to only visible (unoccluded) windows
+  -- Filter to only visible (unoccluded) windows using cached frames
   -- Always include current window so user can navigate away from it
   local visibleWindows = {}
   for i, entry in ipairs(screenWindows) do
-    local windowsAbove = {}
+    local framesAbove = {}
     for j = 1, i - 1 do  -- All windows earlier in z-order = above
-      table.insert(windowsAbove, screenWindows[j].win)
+      table.insert(framesAbove, screenWindows[j].frame)
     end
-    if entry.win:id() == win:id() or isWindowVisible(entry.win, windowsAbove) then
+    if entry.win:id() == win:id() or isFrameVisible(entry.frame, framesAbove) then
       table.insert(visibleWindows, entry)
     end
   end
@@ -923,14 +924,14 @@ local function focusScreen(dir)
     end
   end
 
-  -- Filter to only visible (unoccluded) windows
+  -- Filter to only visible (unoccluded) windows using cached frames
   local visibleWindows = {}
   for i, entry in ipairs(screenWindows) do
-    local windowsAbove = {}
+    local framesAbove = {}
     for j = 1, i - 1 do  -- All windows earlier in z-order = above
-      table.insert(windowsAbove, screenWindows[j].win)
+      table.insert(framesAbove, screenWindows[j].frame)
     end
-    if isWindowVisible(entry.win, windowsAbove) then
+    if isFrameVisible(entry.frame, framesAbove) then
       table.insert(visibleWindows, entry)
     end
   end

@@ -1,6 +1,6 @@
 # Hammerspoon Stepper
 
-Window management with smart edge-aware resizing using fn + arrow key combinations.
+Non-tiling window manager based around graceful moves.
 
 ## Philosophy
 
@@ -29,8 +29,8 @@ All bindings use **fn + modifier + arrow keys** (Home/End/PageUp/PageDown):
 
 | Modifier | Action | Keys |
 |----------|--------|------|
-| *(none)* | Move window | fn + arrows |
-| **shift** | Smart resize | fn + shift + arrows |
+| *(none)* | Step move | fn + arrows |
+| **shift** | Step resize | fn + shift + arrows |
 | **ctrl** | Move to edge | fn + ctrl + arrows |
 | **ctrl+shift** | Resize to edge | fn + ctrl + shift + arrows |
 | **option** | Shrink/unshrink | fn + option + arrows |
