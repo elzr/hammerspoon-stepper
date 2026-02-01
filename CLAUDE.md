@@ -2,27 +2,39 @@
 
 ## Project Overview
 
-This is a Hammerspoon window management config (`stepper.lua`) that provides keyboard-driven window control using fn + modifier + arrow key combinations. It extends the WinWin spoon with smart resize behavior, edge snapping, cross-screen focus, and mouse drag support.
+This is a Hammerspoon window management config that provides keyboard-driven window control using fn + modifier + arrow key combinations. It extends the WinWin spoon with smart resize behavior, edge snapping, cross-screen focus, and mouse drag support.
 
-The config lives in this Dropbox project folder but is loaded by `~/.hammerspoon/init.lua` via:
+## Project Structure
+
+```
+stepper/
+├── stepper.lua           # Main entry point, key bindings, core window operations
+├── focus.lua             # Focus navigation, occlusion detection, visual highlights
+├── mousedrag.lua         # Cmd+Opt+Ctrl mouse drag to move windows
+├── focus-architecture.md # Technical notes on focus implementation
+├── CLAUDE.md             # This file
+└── README.md             # User-facing documentation
+```
+
+Modules use the standard Lua pattern: return a table of public functions, loaded via `dofile()`.
+
+## Loading from Hammerspoon
+
+The config lives in this Dropbox project folder and is loaded by `~/.hammerspoon/init.lua` via:
 ```lua
 require("hs.ipc")  -- Enable CLI control
-dofile("/Users/sara/Library/CloudStorage/Dropbox/projects/log/2025/hammerspoon/stepper.lua")
+dofile("/Users/sara/Library/CloudStorage/Dropbox/projects/log/2025/hammerspoon/stepper/stepper.lua")
 ```
 
 ## Reloading Hammerspoon from CLI
 
-IPC must be enabled (`require("hs.ipc")` in init.lua). Then reload with:
+IPC must be enabled (`require("hs.ipc")` in init.lua). Use the reload script:
 
 ```bash
-/Applications/Hammerspoon.app/Contents/Frameworks/hs/hs -c "hs.reload()" &>/dev/null & sleep 0.2; /Applications/Hammerspoon.app/Contents/Frameworks/hs/hs -c "return 'ready'"
+~/bin/hs-reload.sh
 ```
 
-Key points:
-- The `&` after reload is critical - it backgrounds the command so it doesn't hang waiting for a response from the reloading process
-- `&>/dev/null` suppresses the expected "message port invalidated" error
-- 0.2s sleep is enough for Hammerspoon to restart
-- The second `hs` command verifies the reload completed
+The script backgrounds the reload command (to avoid hanging), waits for restart, and verifies completion.
 
 ## fn Key Workaround
 
