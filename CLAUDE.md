@@ -50,8 +50,8 @@ Hammerspoon cannot bind to `fn` directly. Instead, bind to the key that fn trans
 
 Example:
 ```lua
--- This responds to fn + ctrl + option + Delete
-hs.hotkey.bind({"ctrl", "option"}, "forwarddelete", function()
+-- This responds to fn + cmd + Delete
+hs.hotkey.bind({"cmd"}, "forwarddelete", function()
   -- ...
 end)
 ```

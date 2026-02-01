@@ -39,7 +39,7 @@ All bindings use **fn + modifier + arrow keys** (Home/End/PageUp/PageDown):
 | **shift+option** | Center/maximize toggle | fn + shift + option + up/down |
 | **shift+option** | Half/third cycle | fn + shift + option + left/right |
 
-## Smart Resize Behavior (fn + shift + arrows)
+## Step Resize Behavior (fn + shift + arrows)
 
 The smart resize adapts based on which screen edges the window is touching.
 
@@ -138,9 +138,12 @@ Expand window to full screen width while keeping height and vertical position.
 ### Native Fullscreen
 Toggle macOS native fullscreen mode (with the green button animation).
 
+### Show Focus Highlight (fn + cmd + delete)
+Flash a border around the currently focused window. Useful for locating which window has keyboard focus.
+
 ## Mouse Drag
 
-Hold **cmd + option + ctrl** and drag to move the window under the cursor.
+Hold **cmd** and drag to move the window under the cursor.
 Useful for apps where other window managers don't work (Kitty, Bear, etc.).
 
 ## Dependencies
