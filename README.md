@@ -143,7 +143,7 @@ Flash a border around the currently focused window. Useful for locating which wi
 
 ## Mouse Drag
 
-Hold **cmd** and drag to move the window under the cursor.
+Hold **cmd + option + ctrl** and drag to move the window under the cursor.
 Useful for apps where other window managers don't work (Kitty, Bear, etc.).
 
 ## Dependencies
