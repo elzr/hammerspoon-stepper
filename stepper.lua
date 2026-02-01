@@ -56,6 +56,9 @@ local compactWindows = {}
 -- Track shrunk windows for toggle behavior: {winID = {width = originalW, height = originalH}}
 local shrunkWindows = {}
 
+-- Track last focused window to work around apps that switch focus to wrong window
+local lastFocusedByUs = nil
+
 -- Forward declaration for edge highlight (defined later with other visual feedback)
 local flashEdgeHighlight
 
@@ -826,25 +829,120 @@ local function isFrameVisible(frame, framesAbove)
   return false  -- All points covered
 end
 
+-- Check if a window's center point is within a screen's frame
+local function isWindowCenteredOnScreen(winFrame, screenFrame)
+  local centerX = winFrame.x + winFrame.w / 2
+  local centerY = winFrame.y + winFrame.h / 2
+  return centerX >= screenFrame.x and centerX < screenFrame.x + screenFrame.w and
+         centerY >= screenFrame.y and centerY < screenFrame.y + screenFrame.h
+end
+
+-- Find the screen containing a point (more reliable than win:screen() for edge cases)
+local function getScreenAtPoint(x, y)
+  for _, screen in ipairs(hs.screen.allScreens()) do
+    local sf = screen:frame()
+    if x >= sf.x and x < sf.x + sf.w and
+       y >= sf.y and y < sf.y + sf.h then
+      return screen
+    end
+  end
+  return nil
+end
+
+-- Focus a single window without moving mouse
+-- raise() brings to front visually, focus() gives keyboard focus
+local function focusSingleWindow(win)
+  local app = win:application()
+  local appName = app and app:name() or "unknown"
+  local winTitle = win:title() or "untitled"
+  print(string.format("[focusSingleWindow] Targeting: %s - %s", appName, winTitle))
+
+  local raiseResult = win:raise()
+  print(string.format("[focusSingleWindow] raise() returned: %s", tostring(raiseResult)))
+
+  hs.timer.usleep(10000)  -- 10ms delay
+
+  local focusResult = win:focus()
+  print(string.format("[focusSingleWindow] focus() returned: %s", tostring(focusResult)))
+
+  -- Check what actually got focused
+  hs.timer.doAfter(0.1, function()
+    local focused = hs.window.focusedWindow()
+    if focused then
+      local focusedApp = focused:application()
+      print(string.format("[focusSingleWindow] After 100ms, focused: %s - %s",
+        focusedApp and focusedApp:name() or "unknown",
+        focused:title() or "untitled"))
+    else
+      print("[focusSingleWindow] After 100ms, no focused window!")
+    end
+  end)
+end
+
 -- Focus window in direction (on same screen, with wrap-around)
 local function focusDirection(dir)
   local win = hs.window.focusedWindow()
   if not win then return end
 
-  local currentScreen = win:screen()
-  local currentScreenID = currentScreen:id()
+  -- Work around apps (like Chrome) that switch focus to a different window on another screen
+  -- Only intervene if: same app, different screen (user clicking different app = intentional)
+  if lastFocusedByUs then
+    local lastWin = hs.window.get(lastFocusedByUs)
+    if lastWin and lastWin:isVisible() then
+      local sameApp = win:application():pid() == lastWin:application():pid()
+      if sameApp then
+        local lastFrame = lastWin:frame()
+        local lastCenterX = lastFrame.x + lastFrame.w / 2
+        local lastCenterY = lastFrame.y + lastFrame.h / 2
+        local lastScreen = getScreenAtPoint(lastCenterX, lastCenterY)
+
+        local winFrame = win:frame()
+        local winCenterX = winFrame.x + winFrame.w / 2
+        local winCenterY = winFrame.y + winFrame.h / 2
+        local winScreen = getScreenAtPoint(winCenterX, winCenterY)
+
+        -- Same app jumped to different screen = likely Chrome-style bug
+        if lastScreen and winScreen and lastScreen:id() ~= winScreen:id() then
+          print(string.format("[focusDirection] Same app jumped screens! Using tracked window instead"))
+          win = lastWin
+        end
+      else
+        -- Different app = user intentionally switched, clear tracking
+        lastFocusedByUs = nil
+      end
+    end
+  end
+
+  -- Use the screen containing the window's center (consistent with our filtering logic)
+  local winFrame = win:frame()
+  local centerX = winFrame.x + winFrame.w / 2
+  local centerY = winFrame.y + winFrame.h / 2
+  local currentScreen = getScreenAtPoint(centerX, centerY) or win:screen()
+  local screenFrame = currentScreen:frame()
 
   local windows = hs.window.orderedWindows()
 
   -- Collect all standard windows on the same screen (in z-order, front to back)
-  -- Cache frames upfront to avoid repeated API calls in occlusion check
+  -- Use center-point check instead of w:screen() for reliability with edge-spanning windows
   local screenWindows = {}
   for _, w in ipairs(windows) do
-    if w:isStandard() and w:screen():id() == currentScreenID then
+    if w:isStandard() then
       local frame = w:frame()
-      local pos = (dir == "left" or dir == "right") and frame.x or frame.y
-      table.insert(screenWindows, {win = w, frame = frame, pos = pos})
+      if isWindowCenteredOnScreen(frame, screenFrame) then
+        local pos = (dir == "left" or dir == "right") and frame.x or frame.y
+        table.insert(screenWindows, {win = w, frame = frame, pos = pos})
+      end
     end
+  end
+
+  -- DEBUG: Log screen info and all windows before occlusion filter
+  print(string.format("[focusDirection] dir=%s, screen: x=%d w=%d, from: %s",
+    dir, screenFrame.x, screenFrame.w, win:application():name()))
+  print(string.format("[focusDirection] Before occlusion (%d windows):", #screenWindows))
+  for i, entry in ipairs(screenWindows) do
+    local appName = entry.win:application():name()
+    local winScreen = entry.win:screen():name()
+    print(string.format("  %d. %s (x=%d, screen=%s)", i, appName, entry.frame.x, winScreen))
   end
 
   -- Filter to only visible (unoccluded) windows using cached frames
@@ -861,7 +959,10 @@ local function focusDirection(dir)
   end
   screenWindows = visibleWindows
 
-  if #screenWindows <= 1 then return end  -- No other windows to focus
+  if #screenWindows <= 1 then
+    print("[focusDirection] Only 1 or 0 windows after occlusion, returning")
+    return
+  end
 
   -- Sort by position (ascending)
   table.sort(screenWindows, function(a, b) return a.pos < b.pos end)
@@ -875,7 +976,10 @@ local function focusDirection(dir)
     end
   end
 
-  if not currentIdx then return end
+  if not currentIdx then
+    print("[focusDirection] Current window not found in list!")
+    return
+  end
 
   -- Calculate next index with wrap-around
   local nextIdx
@@ -888,14 +992,39 @@ local function focusDirection(dir)
   end
 
   local targetWin = screenWindows[nextIdx].win
-  targetWin:focus()
+  local targetApp = targetWin:application():name()
+  local targetScreen = targetWin:screen():name()
+  local currentApp = win:application():name()
+
+  -- DEBUG: Log final decision
+  print(string.format("[focusDirection] After occlusion & sort (%d windows):", #screenWindows))
+  for i, entry in ipairs(screenWindows) do
+    local marker = ""
+    if i == currentIdx then marker = " <-- CURRENT"
+    elseif i == nextIdx then marker = " <-- TARGET"
+    end
+    print(string.format("  %d. %s (x=%d)%s", i, entry.win:application():name(), entry.pos, marker))
+  end
+  print(string.format("[focusDirection] FOCUS: %s -> %s (screen: %s)", currentApp, targetApp, targetScreen))
+
+  focusSingleWindow(targetWin)
+  lastFocusedByUs = targetWin:id()  -- Track so we can detect if focus jumps unexpectedly
   flashFocusHighlight(targetWin, dir)
 end
 
 -- Focus window on adjacent screen (focusing the window closest to where you came from)
 local function focusScreen(dir)
   local win = hs.window.focusedWindow()
-  local currentScreen = win and win:screen() or hs.mouse.getCurrentScreen()
+  local currentScreen
+  if win then
+    -- Use the screen containing the window's center (consistent with focusDirection)
+    local winFrame = win:frame()
+    local centerX = winFrame.x + winFrame.w / 2
+    local centerY = winFrame.y + winFrame.h / 2
+    currentScreen = getScreenAtPoint(centerX, centerY) or win:screen()
+  else
+    currentScreen = hs.mouse.getCurrentScreen()
+  end
   if not currentScreen then return end
 
   -- Find the screen in the given direction
@@ -912,15 +1041,18 @@ local function focusScreen(dir)
 
   if not targetScreen then return end  -- No screen in that direction
 
-  local targetScreenID = targetScreen:id()
+  local targetScreenFrame = targetScreen:frame()
   local windows = hs.window.orderedWindows()
 
   -- Collect all standard windows on the target screen (in z-order, front to back)
+  -- Use center-point check instead of w:screen() for reliability with edge-spanning windows
   local screenWindows = {}
   for _, w in ipairs(windows) do
-    if w:isStandard() and w:screen():id() == targetScreenID then
+    if w:isStandard() then
       local frame = w:frame()
-      table.insert(screenWindows, {win = w, frame = frame})
+      if isWindowCenteredOnScreen(frame, targetScreenFrame) then
+        table.insert(screenWindows, {win = w, frame = frame})
+      end
     end
   end
 
@@ -957,7 +1089,8 @@ local function focusScreen(dir)
   end)
 
   local targetWin = screenWindows[1].win
-  targetWin:focus()
+  focusSingleWindow(targetWin)
+  lastFocusedByUs = targetWin:id()  -- Track so we can detect if focus jumps unexpectedly
   flashFocusHighlight(targetWin, dir)
 end
 
@@ -1024,7 +1157,14 @@ hs.hotkey.bind({"cmd"}, "home", toggleCompact)
 -- Show focus highlight on current window (fn+ctrl+option+delete = forwarddelete)
 hs.hotkey.bind({"ctrl", "option"}, "forwarddelete", function()
   local win = hs.window.focusedWindow()
-  if win then flashFocusHighlight(win, nil) end
+  if win then
+    local frame = win:frame()
+    local screen = win:screen():name()
+    local app = win:application():name()
+    print(string.format("[confirmFocus] %s at x=%d on %s (tracked: %s)",
+      app, frame.x, screen, lastFocusedByUs and tostring(lastFocusedByUs) or "none"))
+    flashFocusHighlight(win, nil)
+  end
 end)
 
 -- =============================================================================
