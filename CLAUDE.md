@@ -65,9 +65,8 @@ The project uses a consistent modifier escalation pattern:
 - ctrl+shift: resize to edge
 - option: shrink/unshrink
 - shift+option: center/maximize/half-third toggles
-- ctrl+option: focus window on same screen
-- ctrl+option+cmd: focus window on adjacent screen
-- cmd: compact/max-height/max-width/fullscreen toggles
+- cmd: focus window on same screen
+- option+cmd: focus window on adjacent screen
 
 ## Documentation
 

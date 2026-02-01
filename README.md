@@ -31,14 +31,13 @@ All bindings use **fn + modifier + arrow keys** (Home/End/PageUp/PageDown):
 |----------|--------|------|
 | *(none)* | Step move | fn + arrows |
 | **shift** | Step resize | fn + shift + arrows |
-| **ctrl** | Move to edge | fn + ctrl + arrows |
-| **ctrl+shift** | Resize to edge | fn + ctrl + shift + arrows |
+| **ctrl** | Move to screen edge | fn + ctrl + arrows |
+| **ctrl+shift** | Resize to screen edge | fn + ctrl + shift + arrows |
 | **option** | Shrink/unshrink | fn + option + arrows |
-| **ctrl+option** | Focus direction | fn + ctrl + option + arrows |
-| **ctrl+option+cmd** | Focus across screens | fn + ctrl + option + cmd + arrows |
+| **cmd** | Focus within current screen | fn + cmd + arrows |
+| **option+cmd** | Focus across screens | fn + option + cmd + arrows |
 | **shift+option** | Center/maximize toggle | fn + shift + option + up/down |
 | **shift+option** | Half/third cycle | fn + shift + option + left/right |
-| **cmd** | Compact/expand toggles | fn + cmd + arrows |
 
 ## Smart Resize Behavior (fn + shift + arrows)
 
@@ -85,14 +84,14 @@ Expands the window to fill from its current position to the specified edge.
 - **right**: Restore shrunk width, or grow to right edge if not shrunk (toggle)
 - **down**: Restore shrunk height, or grow to bottom edge if not shrunk (toggle)
 
-### Focus Direction (fn + ctrl + option + arrows)
+### Focus Direction (fn + cmd + arrows)
 Focus the nearest window in that direction (on the same screen):
 - **left/right**: based on window's left edge (x position)
 - **up/down**: based on window's top edge (y position)
 - Wraps around: keep pressing to cycle through all windows on the screen
 - **Skips hidden windows**: Windows fully covered by other windows are excluded
 
-### Focus Across Screens (fn + ctrl + option + cmd + arrows)
+### Focus Across Screens (fn + option + cmd + arrows)
 Jump to an adjacent screen, focusing the window closest to where you came from:
 - **left**: go to left screen, focus window with rightmost edge
 - **right**: go to right screen, focus window with leftmost edge
@@ -116,7 +115,11 @@ Cycle through edge-aligned layouts:
 2. Second press: third-width, full-height, aligned to that edge
 3. Third press: restore previous size and position
 
-### Compact Mode (fn + cmd + left)
+## Unassigned (Available Functions)
+
+The following operations are implemented but not currently bound to keys:
+
+### Compact Mode
 Shrink window to a small size and dock it at the bottom of the screen.
 - Works like a minimized dock: windows line up left-to-right at the screen bottom
 - Each new compact window appears to the right of existing ones
@@ -124,15 +127,15 @@ Shrink window to a small size and dock it at the bottom of the screen.
 - Press again to restore original size and position
 - App-specific minimum sizes are respected (see `minShrinkSize` in config)
 
-### Max Height (fn + cmd + up)
+### Max Height
 Expand window to full screen height while keeping width and horizontal position.
 **Reversible**: Press again to restore previous height.
 
-### Max Width (fn + cmd + right)
+### Max Width
 Expand window to full screen width while keeping height and vertical position.
 **Reversible**: Press again to restore previous width.
 
-### Native Fullscreen (fn + cmd + down)
+### Native Fullscreen
 Toggle macOS native fullscreen mode (with the green button animation).
 
 ## Mouse Drag
