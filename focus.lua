@@ -17,6 +17,11 @@ local lastFocusedByUs = nil
 -- Helper functions
 -- =============================================================================
 
+-- Check if two ranges overlap (any overlap counts)
+local function rangesOverlap(aStart, aEnd, bStart, bEnd)
+  return aStart < bEnd and aEnd > bStart
+end
+
 -- Check if a window's center point is within a screen's frame
 local function isWindowCenteredOnScreen(winFrame, screenFrame)
   local centerX = winFrame.x + winFrame.w / 2
@@ -286,12 +291,43 @@ function M.focusDirection(dir)
     return
   end
 
+  -- Shadow-constrained navigation: first look for windows in the current window's "shadow"
+  -- (overlapping projection in the perpendicular axis)
+  local currentFrame = win:frame()
+  local shadowWindows = {}
+
+  for _, entry in ipairs(screenWindows) do
+    local inShadow
+    if dir == "left" or dir == "right" then
+      -- Vertical shadow: check Y overlap
+      inShadow = rangesOverlap(entry.frame.y, entry.frame.y + entry.frame.h,
+                                currentFrame.y, currentFrame.y + currentFrame.h)
+    else
+      -- Horizontal shadow: check X overlap
+      inShadow = rangesOverlap(entry.frame.x, entry.frame.x + entry.frame.w,
+                                currentFrame.x, currentFrame.x + currentFrame.w)
+    end
+    if inShadow then
+      table.insert(shadowWindows, entry)
+    end
+  end
+
+  -- Use shadow windows if we have more than just the current window
+  local navigableWindows = shadowWindows
+  local usingShadow = #shadowWindows > 1
+  if not usingShadow then
+    navigableWindows = screenWindows  -- Fallback to all windows
+  end
+
+  print(string.format("[focusDirection] Shadow filter: %d in shadow, using %s (%d windows)",
+    #shadowWindows, usingShadow and "shadow" or "all", #navigableWindows))
+
   -- Sort by position (ascending)
-  table.sort(screenWindows, function(a, b) return a.pos < b.pos end)
+  table.sort(navigableWindows, function(a, b) return a.pos < b.pos end)
 
   -- Find current window index in sorted list
   local currentIdx = nil
-  for i, entry in ipairs(screenWindows) do
+  for i, entry in ipairs(navigableWindows) do
     if entry.win:id() == win:id() then
       currentIdx = i
       break
@@ -307,20 +343,20 @@ function M.focusDirection(dir)
   local nextIdx
   if dir == "left" or dir == "up" then
     nextIdx = currentIdx - 1
-    if nextIdx < 1 then nextIdx = #screenWindows end
+    if nextIdx < 1 then nextIdx = #navigableWindows end
   else
     nextIdx = currentIdx + 1
-    if nextIdx > #screenWindows then nextIdx = 1 end
+    if nextIdx > #navigableWindows then nextIdx = 1 end
   end
 
-  local targetWin = screenWindows[nextIdx].win
+  local targetWin = navigableWindows[nextIdx].win
   local targetApp = targetWin:application():name()
   local targetScreen = targetWin:screen():name()
   local currentApp = win:application():name()
 
   -- DEBUG: Log final decision
-  print(string.format("[focusDirection] After occlusion & sort (%d windows):", #screenWindows))
-  for i, entry in ipairs(screenWindows) do
+  print(string.format("[focusDirection] After shadow & sort (%d windows, shadow=%s):", #navigableWindows, tostring(usingShadow)))
+  for i, entry in ipairs(navigableWindows) do
     local marker = ""
     if i == currentIdx then marker = " <-- CURRENT"
     elseif i == nextIdx then marker = " <-- TARGET"

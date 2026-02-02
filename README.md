@@ -90,6 +90,10 @@ Focus the nearest window in that direction (on the same screen):
 - **up/down**: based on window's top edge (y position)
 - Wraps around: keep pressing to cycle through all windows on the screen
 - **Skips hidden windows**: Windows fully covered by other windows are excluded
+- **Shadow-constrained**: Prioritizes windows that overlap with the current window's projection:
+  - Up/down first looks for windows with horizontal overlap (directly above/below)
+  - Left/right first looks for windows with vertical overlap (directly beside)
+  - Falls back to all screen windows if no overlapping candidates exist
 
 ### Focus Across Screens (fn + option + cmd + arrows)
 Jump to an adjacent screen, focusing the window closest to where you came from:
