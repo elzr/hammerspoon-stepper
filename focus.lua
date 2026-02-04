@@ -195,10 +195,15 @@ function M.flashFocusHighlight(win, dir)
   focusHighlight:show()
 
   -- Fade out after a brief moment
+  -- Capture the specific canvas object to avoid race conditions if called rapidly
+  local thisHighlight = focusHighlight
   hs.timer.doAfter(0.3, function()
-    if focusHighlight then
-      focusHighlight:delete()
-      focusHighlight = nil
+    if thisHighlight then
+      thisHighlight:delete()
+      -- Only clear module variable if it still points to this canvas
+      if focusHighlight == thisHighlight then
+        focusHighlight = nil
+      end
     end
   end)
 end
@@ -448,6 +453,14 @@ end
 -- Get debug info about tracking state (for the confirm focus hotkey)
 function M.getTrackingInfo()
   return lastFocusedByUs
+end
+
+-- Clean up any lingering highlight (call on reload or if highlight gets stuck)
+function M.clearHighlight()
+  if focusHighlight then
+    focusHighlight:delete()
+    focusHighlight = nil
+  end
 end
 
 return M

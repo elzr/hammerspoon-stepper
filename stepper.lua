@@ -5,6 +5,9 @@ local scriptPath = debug.getinfo(1, "S").source:match("@(.*/)")
 local focus = dofile(scriptPath .. "focus.lua")
 local mousedrag = dofile(scriptPath .. "mousedrag.lua")
 
+-- Clean up any orphaned focus highlights from previous session
+focus.clearHighlight()
+
 -- Adaptive animation: luxurious by default, snappy when rapidly iterating
 local luxuriousDuration = 0.3
 local snappyDuration = 0.1
