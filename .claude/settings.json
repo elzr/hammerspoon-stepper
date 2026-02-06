@@ -1,5 +1,8 @@
 {
   "allowedTools": [
-    "Bash(hs:*)"
+    "Bash(hs:*)",
+    "Edit",
+    "Write",
+    "Read"
   ]
 }

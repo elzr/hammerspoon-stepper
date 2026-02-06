@@ -190,48 +190,49 @@ local function smartStepResize(dir)
   if not win then return end
   local bottom_edge = screen.y + screen.h - frame.h
   local right_edge = screen.x + screen.w - frame.w
-  
+  local snap = 5  -- tolerance for edge detection (Retina subpixel rounding)
+
   if dir == "left" then
-    if frame.x <= screen.x and frame.x < right_edge then --REVERT resize to GROW from left edge
+    if frame.x <= screen.x + snap and frame.x < right_edge then --REVERT resize to GROW from left edge
       flashEdgeHighlight(screen, "left")
       stepResize("right")
       return
     end
-    if frame.x >= right_edge then --SHRINK resize as if STUCK at right edge
+    if frame.x >= right_edge - snap then --SHRINK resize as if STUCK at right edge
       flashEdgeHighlight(screen, "right")
       stepResize("left")
       stepMove("right")
       return
     end
   elseif dir == "right" then
-    if frame.x <= screen.x then --SHRINK resize as if STUCK at left edge
+    if frame.x <= screen.x + snap then --SHRINK resize as if STUCK at left edge
       flashEdgeHighlight(screen, "left")
       stepResize("left")
       return
     end
-    if frame.x >= right_edge then --REVERT resize to GROW from edge
+    if frame.x >= right_edge - snap then --REVERT resize to GROW from edge
       flashEdgeHighlight(screen, "right")
       stepMove("left")
     end
   elseif dir == "up" then
-    if frame.y <= screen.y and frame.y < bottom_edge then --REVERT resize to GROW from top edge
+    if frame.y <= screen.y + snap and frame.y < bottom_edge then --REVERT resize to GROW from top edge
       flashEdgeHighlight(screen, "up")
       stepResize("down")
       return
     end
-    if frame.y >= bottom_edge then --SHRINK resize as if STUCK at bottom edge
+    if frame.y >= bottom_edge - snap then --SHRINK resize as if STUCK at bottom edge
       flashEdgeHighlight(screen, "down")
       stepResize("up")
       stepMove("down")
       return
     end
   elseif dir == "down" then
-    if frame.y <= screen.y then --SHRINK resize as if STUCK at top edge
+    if frame.y <= screen.y + snap then --SHRINK resize as if STUCK at top edge
       flashEdgeHighlight(screen, "up")
       stepResize("up")
       return
     end
-    if frame.y >= bottom_edge then --REVERT resize to GROW from edge
+    if frame.y >= bottom_edge - snap then --REVERT resize to GROW from edge
       flashEdgeHighlight(screen, "down")
       stepMove("up")
     end
