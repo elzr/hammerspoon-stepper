@@ -145,9 +145,40 @@ Toggle macOS native fullscreen mode (with the green button animation).
 ### Show Focus Highlight (fn + cmd + delete)
 Flash a border around the currently focused window. Useful for locating which window has keyboard focus.
 
+## Bear Note HUD
+
+Open Bear notes like a HUD: a keyboard shortcut opens a specific note right where you left off, with caret and scroll position preserved. Close it, reopen it later — same spot.
+
+### How It Works
+
+The `bearcaret` module intercepts `hammerspoon://open-bear-note` URLs, opens the note in Bear, and restores the saved caret and scroll position. Positions are auto-saved every 3 seconds while Bear is active and on app deactivate.
+
+### URL Format
+
+```
+hammerspoon://open-bear-note?title=<encoded title>
+hammerspoon://open-bear-note?id=<note id>
+```
+
+Wire these URLs to keyboard shortcuts via BetterTouchTool, Raycast, or any launcher — each shortcut becomes a HUD that opens a specific note at the exact position you left it.
+
+### Example: BTT Shortcut
+
+1. Create a keyboard shortcut in BetterTouchTool
+2. Set the action to "Open URL"
+3. Use `hammerspoon://open-bear-note?title=my%20note%20title`
+
+### Position Tracking
+
+- **Caret**: Read/written via `AXSelectedTextRange` on Bear's `AXTextArea`
+- **Scroll**: Read/written via `AXValue` on the vertical `AXScrollBar`
+- **Storage**: `bearcaret-positions.json` (persists across Hammerspoon reloads)
+- **Auto-save**: Every 3s while Bear is frontmost + on Bear deactivate
+- **ID support**: When opened by `id`, learns the title→id mapping so auto-save works by id
+
 ## Mouse Drag
 
-Hold **cmd + option + ctrl** and drag to move the window under the cursor.
+Hold **fn** and drag to move the window under the cursor.
 Useful for apps where other window managers don't work (Kitty, Bear, etc.).
 
 ## Dependencies

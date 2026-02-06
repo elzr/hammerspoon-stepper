@@ -1,5 +1,5 @@
 -- =============================================================================
--- Mouse drag to move window under cursor (Cmd+Option+Ctrl + mouse move)
+-- Mouse drag to move window under cursor (fn + mouse move)
 -- =============================================================================
 -- Useful for apps like Kitty and Bear where Better Touch Tool doesn't work
 --
@@ -45,7 +45,7 @@ local function createMouseMoveHandler()
         _G.windowDrag.lastCallbackTime = hs.timer.secondsSinceEpoch()
 
         local flags = event:getFlags()
-        local requiredMods = flags.cmd and flags.alt and flags.ctrl
+        local requiredMods = flags.fn and not (flags.shift or flags.cmd or flags.alt or flags.ctrl)
         local dragState = _G.windowDrag.dragState
 
         if requiredMods then
@@ -90,7 +90,7 @@ local function createFlagsHandler()
         _G.windowDrag.lastCallbackTime = hs.timer.secondsSinceEpoch()
 
         local flags = event:getFlags()
-        local requiredMods = flags.cmd and flags.alt and flags.ctrl
+        local requiredMods = flags.fn and not (flags.shift or flags.cmd or flags.alt or flags.ctrl)
         local dragState = _G.windowDrag.dragState
 
         if not requiredMods and dragState.dragging then

@@ -4,6 +4,7 @@ hs.loadSpoon("WinWin")
 local scriptPath = debug.getinfo(1, "S").source:match("@(.*/)")
 local focus = dofile(scriptPath .. "focus.lua")
 local mousedrag = dofile(scriptPath .. "mousedrag.lua")
+bearcaret = dofile(scriptPath .. "bearcaret.lua")
 
 -- Clean up any orphaned focus highlights from previous session
 focus.clearHighlight()
@@ -196,45 +197,79 @@ local function smartStepResize(dir)
     if frame.x <= screen.x + snap and frame.x < right_edge then --REVERT resize to GROW from left edge
       flashEdgeHighlight(screen, "left")
       stepResize("right")
+      -- Re-snap to left edge (Retina subpixel rounding can cause drift)
+      local f = win:frame()
+      f.x = screen.x
+      instant(function() win:setFrame(f) end)
       return
     end
     if frame.x >= right_edge - snap then --SHRINK resize as if STUCK at right edge
       flashEdgeHighlight(screen, "right")
       stepResize("left")
-      stepMove("right")
+      -- Re-snap to right edge (Retina subpixel rounding can cause drift)
+      local f = win:frame()
+      f.x = screen.x + screen.w - f.w
+      instant(function() win:setFrame(f) end)
       return
     end
   elseif dir == "right" then
     if frame.x <= screen.x + snap then --SHRINK resize as if STUCK at left edge
       flashEdgeHighlight(screen, "left")
       stepResize("left")
+      -- Re-snap to left edge (Retina subpixel rounding can cause drift)
+      local f = win:frame()
+      f.x = screen.x
+      instant(function() win:setFrame(f) end)
       return
     end
-    if frame.x >= right_edge - snap then --REVERT resize to GROW from edge
+    if frame.x >= right_edge - snap then --REVERT resize to GROW from right edge
       flashEdgeHighlight(screen, "right")
       stepMove("left")
+      stepResize("right")
+      -- Re-snap to right edge (Retina subpixel rounding can cause drift)
+      local f = win:frame()
+      f.x = screen.x + screen.w - f.w
+      instant(function() win:setFrame(f) end)
+      return
     end
   elseif dir == "up" then
     if frame.y <= screen.y + snap and frame.y < bottom_edge then --REVERT resize to GROW from top edge
       flashEdgeHighlight(screen, "up")
       stepResize("down")
+      -- Re-snap to top edge (Retina subpixel rounding can cause drift)
+      local f = win:frame()
+      f.y = screen.y
+      instant(function() win:setFrame(f) end)
       return
     end
     if frame.y >= bottom_edge - snap then --SHRINK resize as if STUCK at bottom edge
       flashEdgeHighlight(screen, "down")
       stepResize("up")
-      stepMove("down")
+      -- Re-snap to bottom edge (Retina subpixel rounding can cause drift)
+      local f = win:frame()
+      f.y = screen.y + screen.h - f.h
+      instant(function() win:setFrame(f) end)
       return
     end
   elseif dir == "down" then
     if frame.y <= screen.y + snap then --SHRINK resize as if STUCK at top edge
       flashEdgeHighlight(screen, "up")
       stepResize("up")
+      -- Re-snap to top edge (Retina subpixel rounding can cause drift)
+      local f = win:frame()
+      f.y = screen.y
+      instant(function() win:setFrame(f) end)
       return
     end
-    if frame.y >= bottom_edge - snap then --REVERT resize to GROW from edge
+    if frame.y >= bottom_edge - snap then --REVERT resize to GROW from bottom edge
       flashEdgeHighlight(screen, "down")
       stepMove("up")
+      stepResize("down")
+      -- Re-snap to bottom edge (Retina subpixel rounding can cause drift)
+      local f = win:frame()
+      f.y = screen.y + screen.h - f.h
+      instant(function() win:setFrame(f) end)
+      return
     end
   end
 
@@ -783,3 +818,6 @@ end)
 
 -- Initialize mouse drag module
 mousedrag.init()
+
+-- Initialize Bear caret position persistence
+bearcaret.init(scriptPath)
