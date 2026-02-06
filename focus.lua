@@ -11,6 +11,7 @@ local M = {}
 
 -- Module state
 local focusHighlight = nil
+local focusHighlightGen = 0
 local lastFocusedByUs = nil
 
 -- =============================================================================
@@ -105,12 +106,22 @@ end
 -- Visual feedback
 -- =============================================================================
 
+-- Safely delete a canvas (no-op if already deleted or nil)
+local function safeDeleteCanvas(canvas)
+  if canvas then
+    pcall(function() canvas:delete() end)
+  end
+end
+
 -- Flash a border around a window to highlight it (thicker on the focus direction side)
 function M.flashFocusHighlight(win, dir)
-  if focusHighlight then
-    focusHighlight:delete()
-    focusHighlight = nil
-  end
+  -- Always clean up previous highlight
+  safeDeleteCanvas(focusHighlight)
+  focusHighlight = nil
+
+  -- Bump generation so any pending timers from previous highlights become no-ops
+  focusHighlightGen = focusHighlightGen + 1
+  local thisGen = focusHighlightGen
 
   local frame = win:frame()
   local thin = 4
@@ -195,15 +206,20 @@ function M.flashFocusHighlight(win, dir)
   focusHighlight:show()
 
   -- Fade out after a brief moment
-  -- Capture the specific canvas object to avoid race conditions if called rapidly
-  local thisHighlight = focusHighlight
+  -- Use generation counter: if a newer highlight exists, this timer is a no-op
   hs.timer.doAfter(0.3, function()
-    if thisHighlight then
-      thisHighlight:delete()
-      -- Only clear module variable if it still points to this canvas
-      if focusHighlight == thisHighlight then
-        focusHighlight = nil
-      end
+    if focusHighlightGen == thisGen and focusHighlight then
+      safeDeleteCanvas(focusHighlight)
+      focusHighlight = nil
+    end
+  end)
+
+  -- Failsafe: ensure cleanup even if something unexpected happens
+  hs.timer.doAfter(2.0, function()
+    if focusHighlightGen == thisGen and focusHighlight then
+      print("[flashFocusHighlight] Failsafe cleanup triggered")
+      safeDeleteCanvas(focusHighlight)
+      focusHighlight = nil
     end
   end)
 end
@@ -457,10 +473,9 @@ end
 
 -- Clean up any lingering highlight (call on reload or if highlight gets stuck)
 function M.clearHighlight()
-  if focusHighlight then
-    focusHighlight:delete()
-    focusHighlight = nil
-  end
+  safeDeleteCanvas(focusHighlight)
+  focusHighlight = nil
+  focusHighlightGen = focusHighlightGen + 1  -- invalidate any pending timers
 end
 
 return M
