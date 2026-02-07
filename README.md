@@ -147,32 +147,47 @@ Flash a border around the currently focused window. Useful for locating which wi
 
 ## Bear Note HUD
 
-Open Bear notes like a HUD: a keyboard shortcut opens a specific note right where you left off, with caret and scroll position preserved. Close it, reopen it later — same spot.
+Open Bear notes like a HUD: a keyboard shortcut opens a specific note right where you left off, with caret and scroll position preserved. Press again to summon the note to your cursor. Press again to send it back.
 
-### How It Works
+### Note Hotkeys (hyperkey + letter)
 
-The `bearcaret` module intercepts `hammerspoon://open-bear-note` URLs, opens the note in Bear, and restores the saved caret and scroll position. Positions are auto-saved every 3 seconds while Bear is active and on app deactivate.
+Configured in `bear-notes.json`. Each hotkey cycles through four states:
 
-### URL Format
+| Press | State | Action |
+|-------|-------|--------|
+| 1st | Not open | Opens note in Bear, restores caret/scroll position |
+| 2nd | Open, not focused | Raises + focuses the note window |
+| 3rd | Focused | Centers the window on the mouse cursor |
+| 4th | Summoned | Returns to original position, refocuses previous app |
+
+Default bindings (hyperkey = ctrl+alt+shift+cmd):
+
+| Key | Note |
+|-----|------|
+| N | `_mem NOW` |
+| R | `_app rcmd` |
+| D | Weekly days |
+| W | Weekly work |
+| T | Weekly thoughts |
+| S | `_topsight 2026` |
+| I | `_index 2026` |
+
+Weekly note titles use template variables (`weekNum`, `weekDays`) defined in `bear-notes.json`.
+
+### URL Handler
+
+The `hammerspoon://open-bear-note` URL handler is also available for external launchers:
 
 ```
 hammerspoon://open-bear-note?title=<encoded title>
 hammerspoon://open-bear-note?id=<note id>
 ```
 
-Wire these URLs to keyboard shortcuts via BetterTouchTool, Raycast, or any launcher — each shortcut becomes a HUD that opens a specific note at the exact position you left it.
-
-### Example: BTT Shortcut
-
-1. Create a keyboard shortcut in BetterTouchTool
-2. Set the action to "Open URL"
-3. Use `hammerspoon://open-bear-note?title=my%20note%20title`
-
 ### Position Tracking
 
 - **Caret**: Read/written via `AXSelectedTextRange` on Bear's `AXTextArea`
 - **Scroll**: Read/written via `AXValue` on the vertical `AXScrollBar`
-- **Storage**: `bearcaret-positions.json` (persists across Hammerspoon reloads)
+- **Storage**: `bear-hud-positions.json` (persists across Hammerspoon reloads)
 - **Auto-save**: Every 3s while Bear is frontmost + on Bear deactivate
 - **ID support**: When opened by `id`, learns the title→id mapping so auto-save works by id
 

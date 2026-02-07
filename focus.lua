@@ -478,4 +478,6 @@ function M.clearHighlight()
   focusHighlightGen = focusHighlightGen + 1  -- invalidate any pending timers
 end
 
+M.focusSingleWindow = focusSingleWindow
+
 return M

@@ -4,7 +4,7 @@ hs.loadSpoon("WinWin")
 local scriptPath = debug.getinfo(1, "S").source:match("@(.*/)")
 local focus = dofile(scriptPath .. "focus.lua")
 local mousedrag = dofile(scriptPath .. "mousedrag.lua")
-bearcaret = dofile(scriptPath .. "bearcaret.lua")
+bear_hud = dofile(scriptPath .. "bear-hud.lua")
 
 -- Clean up any orphaned focus highlights from previous session
 focus.clearHighlight()
@@ -819,5 +819,5 @@ end)
 -- Initialize mouse drag module
 mousedrag.init()
 
--- Initialize Bear caret position persistence
-bearcaret.init(scriptPath)
+-- Initialize Bear HUD (note hotkeys + caret position persistence)
+bear_hud.init(scriptPath, focus)

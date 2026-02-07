@@ -1,9 +1,10 @@
 -- =============================================================================
--- Bear caret position persistence
+-- Bear HUD: note hotkeys + caret position persistence
 -- =============================================================================
--- Tracks caret + scroll positions in Bear notes and restores them on reopen.
+-- Hotkeys to open/summon Bear notes with caret + scroll position persistence.
 -- Uses hs.axuielement to read/write AXSelectedTextRange and AXScrollBar value.
 --
+-- Hotkeys: hyperkey + letter → open/raise/summon/unsummon Bear note
 -- URL handler: hammerspoon://open-bear-note?title=<title> or ?id=<id>
 -- Auto-save: periodic while Bear is active + on deactivate
 
@@ -15,6 +16,8 @@ local titleToId = {}        -- {windowTitle = noteId} learned from URL handler
 local positionsFile = nil   -- set by init()
 local appWatcher = nil
 local saveTimer = nil
+local focusModule = nil     -- set by init(), provides flashFocusHighlight + focusSingleWindow
+local summonedNotes = {}    -- {title = {previousWin=<window>, originalFrame={x,y,w,h}}}
 
 -- =============================================================================
 -- Accessibility helpers
@@ -198,7 +201,7 @@ local function savePositions()
   if not positionsFile then return end
   local f = io.open(positionsFile, "w")
   if not f then
-    print("[bearcaret] Failed to write positions file")
+    print("[bear-hud] Failed to write positions file")
     return
   end
   f:write(hs.json.encode({positions = positions, titleToId = titleToId}, true))
@@ -220,7 +223,7 @@ local function savePositionForTitle(winTitle)
   local key = keyForTitle(winTitle)
   positions[key] = {caret = caret, scroll = scroll}
   savePositions()
-  print(string.format("[bearcaret] Saved caret=%d scroll=%s for '%s'",
+  print(string.format("[bear-hud] Saved caret=%d scroll=%s for '%s'",
     caret, scroll and string.format("%.4f", scroll) or "nil", key))
 end
 
@@ -237,14 +240,14 @@ function M.restoreCurrentPosition()
   local key = keyForTitle(title)
   local saved = positions[key]
   if not saved then
-    print(string.format("[bearcaret] No saved position for '%s'", key))
+    print(string.format("[bear-hud] No saved position for '%s'", key))
     return
   end
   local scrollArea, textArea = getElementsForTitle(title)
   if textArea then
     M.setCaretPosition(textArea, saved.caret)
     setScrollValue(scrollArea, saved.scroll)
-    print(string.format("[bearcaret] Restored caret=%d scroll=%s for '%s'",
+    print(string.format("[bear-hud] Restored caret=%d scroll=%s for '%s'",
       saved.caret, saved.scroll and string.format("%.4f", saved.scroll) or "nil", key))
   end
 end
@@ -266,7 +269,7 @@ function M.restoreForNote(key, matchTitle)
       if attempts < maxAttempts then
         hs.timer.doAfter(0.1, tryRestore)
       else
-        print(string.format("[bearcaret] Gave up waiting for '%s' after %d attempts", matchTitle, attempts))
+        print(string.format("[bear-hud] Gave up waiting for '%s' after %d attempts", matchTitle, attempts))
       end
       return
     end
@@ -282,7 +285,7 @@ function M.restoreForNote(key, matchTitle)
       if saved then
         M.setCaretPosition(textArea, saved.caret)
         setScrollValue(scrollArea, saved.scroll)
-        print(string.format("[bearcaret] Restored caret=%d scroll=%s for '%s' (attempt %d)",
+        print(string.format("[bear-hud] Restored caret=%d scroll=%s for '%s' (attempt %d)",
           saved.caret, saved.scroll and string.format("%.4f", saved.scroll) or "nil",
           key, attempts))
       end
@@ -293,7 +296,7 @@ function M.restoreForNote(key, matchTitle)
     if attempts < maxAttempts then
       hs.timer.doAfter(0.1, tryRestore)
     else
-      print(string.format("[bearcaret] Gave up restoring '%s' after %d attempts", key, attempts))
+      print(string.format("[bear-hud] Gave up restoring '%s' after %d attempts", key, attempts))
     end
   end
 
@@ -308,13 +311,13 @@ end
 function M.dumpTree()
   local bear = hs.application.get("Bear")
   if not bear then
-    print("[bearcaret] Bear is not running")
+    print("[bear-hud] Bear is not running")
     return
   end
 
   local appEl = hs.axuielement.applicationElement(bear)
   if not appEl then
-    print("[bearcaret] Could not get AX application element")
+    print("[bear-hud] Could not get AX application element")
     return
   end
 
@@ -363,36 +366,136 @@ end
 -- Print current status
 function M.status()
   local title = M.getCurrentNoteTitle()
-  print(string.format("[bearcaret] Window title: %s", title or "nil"))
+  print(string.format("[bear-hud] Window title: %s", title or "nil"))
 
   local scrollArea, textArea = getElementsForTitle(title or "")
   if textArea then
     local pos = M.getCaretPosition(textArea)
-    print(string.format("[bearcaret] Current caret: %s", pos and tostring(pos) or "nil"))
+    print(string.format("[bear-hud] Current caret: %s", pos and tostring(pos) or "nil"))
     local charCount = textArea:attributeValue("AXNumberOfCharacters")
-    print(string.format("[bearcaret] Document length: %s", charCount and tostring(charCount) or "nil"))
+    print(string.format("[bear-hud] Document length: %s", charCount and tostring(charCount) or "nil"))
     local scroll = getScrollValue(scrollArea)
-    print(string.format("[bearcaret] Scroll value: %s", scroll and string.format("%.4f", scroll) or "nil"))
+    print(string.format("[bear-hud] Scroll value: %s", scroll and string.format("%.4f", scroll) or "nil"))
   else
-    print("[bearcaret] No text area found")
+    print("[bear-hud] No text area found")
   end
 
   local key = title and keyForTitle(title) or nil
   if key and positions[key] then
     local saved = positions[key]
-    print(string.format("[bearcaret] Saved: caret=%s scroll=%s (key: %s)",
+    print(string.format("[bear-hud] Saved: caret=%s scroll=%s (key: %s)",
       tostring(saved.caret), saved.scroll and string.format("%.4f", saved.scroll) or "nil", key))
   else
-    print("[bearcaret] No saved position for this note")
+    print("[bear-hud] No saved position for this note")
   end
 end
 
 -- =============================================================================
--- URL handler + auto-save watcher
+-- Note hotkey state machine
 -- =============================================================================
 
-function M.init(scriptPath)
-  positionsFile = scriptPath .. "bearcaret-positions.json"
+-- Find a Bear window by title (using hs.window objects, not AX)
+local function findBearWindowByTitle(title)
+  local bear = hs.application.get("Bear")
+  if not bear then return nil end
+  for _, win in ipairs(bear:allWindows()) do
+    if win:title() == title then return win end
+  end
+  return nil
+end
+
+-- Open a note in Bear via bear:// URL
+local function openNoteInBear(title)
+  local bearURL = "bear://x-callback-url/open-note?title=" .. title:gsub(" ", "%%20")
+    .. "&edit=yes&new_window=yes&show_window=no"
+  hs.urlevent.openURL(bearURL)
+end
+
+-- Handle a note hotkey press (implements the 4-state machine)
+local function handleNoteHotkey(noteTitle)
+  print(string.format("[bear-hud] Hotkey for '%s'", noteTitle))
+
+  local state = summonedNotes[noteTitle]
+  local noteWin = findBearWindowByTitle(noteTitle)
+
+  -- State 4: summoned → return to original position + refocus previous window
+  if state and state.originalFrame then
+    print(string.format("[bear-hud] Unsummoning '%s'", noteTitle))
+    local orig = state.originalFrame
+    hs.window.animationDuration = 0
+    noteWin:setFrame(orig)
+    hs.window.animationDuration = 0.3
+    if state.previousWin and state.previousWin:isVisible() then
+      focusModule.focusSingleWindow(state.previousWin)
+      focusModule.flashFocusHighlight(state.previousWin, nil)
+    end
+    summonedNotes[noteTitle] = nil
+    return
+  end
+
+  -- State 1: not open → open via bear:// URL
+  if not noteWin then
+    print(string.format("[bear-hud] Opening '%s'", noteTitle))
+    M.saveCurrentPosition()
+    openNoteInBear(noteTitle)
+    -- Poll for the window to appear, then highlight it
+    local attempts = 0
+    local function waitForWindow()
+      attempts = attempts + 1
+      local win = findBearWindowByTitle(noteTitle)
+      if win then
+        focusModule.focusSingleWindow(win)
+        focusModule.flashFocusHighlight(win, nil)
+        summonedNotes[noteTitle] = {previousWin = nil}
+        M.restoreForNote(noteTitle, noteTitle)
+      elseif attempts < 30 then
+        hs.timer.doAfter(0.1, waitForWindow)
+      else
+        print(string.format("[bear-hud] Gave up waiting for window '%s'", noteTitle))
+      end
+    end
+    hs.timer.doAfter(0.2, waitForWindow)
+    return
+  end
+
+  -- State 3: open AND focused → center on mouse cursor
+  local focusedWin = hs.window.focusedWindow()
+  if focusedWin and focusedWin:id() == noteWin:id() then
+    print(string.format("[bear-hud] Summoning '%s' to cursor", noteTitle))
+    local mouse = hs.mouse.absolutePosition()
+    local frame = noteWin:frame()
+    local screen = hs.mouse.getCurrentScreen():frame()
+    -- Save original frame before moving
+    if not state then
+      state = {previousWin = nil}
+    end
+    state.originalFrame = {x = frame.x, y = frame.y, w = frame.w, h = frame.h}
+    summonedNotes[noteTitle] = state
+    -- Center on cursor, clamped to screen
+    local newX = math.max(screen.x, math.min(mouse.x - frame.w/2, screen.x + screen.w - frame.w))
+    local newY = math.max(screen.y, math.min(mouse.y - frame.h/2, screen.y + screen.h - frame.h))
+    hs.window.animationDuration = 0
+    noteWin:setFrame({x = newX, y = newY, w = frame.w, h = frame.h})
+    hs.window.animationDuration = 0.3
+    focusModule.flashFocusHighlight(noteWin, nil)
+    return
+  end
+
+  -- State 2: open, not focused → raise + focus + highlight
+  print(string.format("[bear-hud] Raising '%s'", noteTitle))
+  M.saveCurrentPosition()
+  summonedNotes[noteTitle] = {previousWin = focusedWin}
+  focusModule.focusSingleWindow(noteWin)
+  focusModule.flashFocusHighlight(noteWin, nil)
+end
+
+-- =============================================================================
+-- URL handler + auto-save watcher + note hotkeys
+-- =============================================================================
+
+function M.init(scriptPath, focus)
+  focusModule = focus
+  positionsFile = scriptPath .. "bear-hud-positions.json"
   loadPositions()
 
   -- URL handler: hammerspoon://open-bear-note?title=<title> or ?id=<id>
@@ -401,12 +504,12 @@ function M.init(scriptPath)
     local title = params.title
     local id = params.id
     if not title and not id then
-      print("[bearcaret] open-bear-note called without title or id")
+      print("[bear-hud] open-bear-note called without title or id")
       return
     end
 
     hs.timer.doAfter(0, function()
-      print(string.format("[bearcaret] Opening note: %s", id or title))
+      print(string.format("[bear-hud] Opening note: %s", id or title))
 
       -- Save current position before switching notes
       M.saveCurrentPosition()
@@ -458,7 +561,33 @@ function M.init(scriptPath)
     end)
   end
 
-  print("[bearcaret] Initialized")
+  -- Load note hotkeys from bear-notes.json
+  local notesFile = scriptPath .. "bear-notes.json"
+  local nf = io.open(notesFile, "r")
+  if nf then
+    local content = nf:read("*a")
+    nf:close()
+    local config = hs.json.decode(content)
+    if config then
+      local vars = config.vars or {}
+      local mods = config.mods or {}
+      for _, note in ipairs(config.notes or {}) do
+        -- Expand template vars in title
+        local title = note.title
+        for varName, varValue in pairs(vars) do
+          title = title:gsub("%${" .. varName .. "}", varValue)
+        end
+        hs.hotkey.bind(mods, note.key, function()
+          handleNoteHotkey(title)
+        end)
+        print(string.format("[bear-hud] Bound %s → '%s'", note.key, title))
+      end
+    end
+  else
+    print("[bear-hud] No bear-notes.json found, skipping hotkeys")
+  end
+
+  print("[bear-hud] Initialized")
 end
 
 return M
