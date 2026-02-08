@@ -18,6 +18,8 @@ local appWatcher = nil
 local saveTimer = nil
 local focusModule = nil     -- set by init(), provides flashFocusHighlight + focusSingleWindow
 local summonedNotes = {}    -- {title = {previousWin=<window>, originalFrame={x,y,w,h}}}
+local saveInFlight = false  -- guards against overlapping timer saves
+local dirty = false         -- tracks whether positions need writing to disk
 
 -- =============================================================================
 -- Accessibility helpers
@@ -35,38 +37,13 @@ local function findChildWithRole(element, role)
   return nil
 end
 
--- Find AXTextArea in an AX element subtree
-local function findTextArea(element)
-  local role = element:attributeValue("AXRole")
-  if role == "AXTextArea" then return element end
-  local children = element:attributeValue("AXChildren")
-  if children then
-    for _, child in ipairs(children) do
-      local result = findTextArea(child)
-      if result then return result end
-    end
-  end
-  return nil
-end
-
--- Find the AXScrollArea containing the text area, and return both
+-- Bear's AX tree is: Window → AXScrollArea → AXTextArea
 local function findScrollAreaAndTextArea(axWin)
-  local function search(element)
-    local role = element:attributeValue("AXRole")
-    if role == "AXScrollArea" then
-      local ta = findChildWithRole(element, "AXTextArea")
-      if ta then return element, ta end
-    end
-    local children = element:attributeValue("AXChildren")
-    if children then
-      for _, child in ipairs(children) do
-        local sa, ta = search(child)
-        if sa then return sa, ta end
-      end
-    end
-    return nil, nil
-  end
-  return search(axWin)
+  local scrollArea = findChildWithRole(axWin, "AXScrollArea")
+  if not scrollArea then return nil, nil end
+  local textArea = findChildWithRole(scrollArea, "AXTextArea")
+  if not textArea then return nil, nil end
+  return scrollArea, textArea
 end
 
 -- Get the vertical scrollbar value (0.0-1.0) from a scroll area
@@ -97,11 +74,14 @@ end
 
 -- Find scroll area + text area for a specific window title via AX tree
 local function getElementsForTitle(winTitle)
-  local windows = getBearAXWindows()
-  if not windows then return nil, nil end
+  local ok, windows = pcall(getBearAXWindows)
+  if not ok or not windows then return nil, nil end
   for _, axWin in ipairs(windows) do
-    if axWin:attributeValue("AXTitle") == winTitle then
-      return findScrollAreaAndTextArea(axWin)
+    local ok2, title = pcall(function() return axWin:attributeValue("AXTitle") end)
+    if ok2 and title == winTitle then
+      local ok3, sa, ta = pcall(findScrollAreaAndTextArea, axWin)
+      if ok3 then return sa, ta end
+      return nil, nil
     end
   end
   return nil, nil
@@ -110,33 +90,41 @@ end
 -- Get Bear's text area element via the system-wide focused element,
 -- with fallback to tree traversal
 function M.getBearTextArea()
-  local bear = hs.application.get("Bear")
-  if not bear then return nil end
+  local ok, result = pcall(function()
+    local bear = hs.application.get("Bear")
+    if not bear then return nil end
 
-  -- Try focused element first (fast path)
-  local syswide = hs.axuielement.systemWideElement()
-  local focused = syswide:attributeValue("AXFocusedUIElement")
-  if focused then
-    local role = focused:attributeValue("AXRole")
-    if role == "AXTextArea" then
-      return focused
+    -- Try focused element first (fast path)
+    local syswide = hs.axuielement.systemWideElement()
+    local focused = syswide:attributeValue("AXFocusedUIElement")
+    if focused then
+      local role = focused:attributeValue("AXRole")
+      if role == "AXTextArea" then
+        return focused
+      end
     end
-  end
 
-  -- Fallback: match Bear's focused window by title
-  local focusedWin = bear:focusedWindow()
-  local focusedTitle = focusedWin and focusedWin:title()
-  if focusedTitle then
-    local _, ta = getElementsForTitle(focusedTitle)
-    if ta then return ta end
-  end
+    -- Fallback: match Bear's focused window by title
+    local focusedWin = bear:focusedWindow()
+    local focusedTitle = focusedWin and focusedWin:title()
+    if focusedTitle then
+      local _, ta = getElementsForTitle(focusedTitle)
+      if ta then return ta end
+    end
 
-  -- Last resort: try first AX window
-  local windows = getBearAXWindows()
-  if windows and #windows > 0 then
-    return findTextArea(windows[1])
+    -- Last resort: try first AX window
+    local windows = getBearAXWindows()
+    if windows and #windows > 0 then
+      local _, ta = findScrollAreaAndTextArea(windows[1])
+      return ta
+    end
+    return nil
+  end)
+  if not ok then
+    print("[bear-hud] AX error in getBearTextArea: " .. tostring(result))
+    return nil
   end
-  return nil
+  return result
 end
 
 -- Read caret position from a text area
@@ -199,6 +187,7 @@ end
 
 local function savePositions()
   if not positionsFile then return end
+  if not dirty then return end
   local f = io.open(positionsFile, "w")
   if not f then
     print("[bear-hud] Failed to write positions file")
@@ -206,6 +195,7 @@ local function savePositions()
   end
   f:write(hs.json.encode({positions = positions, titleToId = titleToId}, true))
   f:close()
+  dirty = false
 end
 
 -- =============================================================================
@@ -215,16 +205,25 @@ end
 -- Save caret + scroll position for a specific window title
 local function savePositionForTitle(winTitle)
   if not winTitle or winTitle == "" then return end
-  local scrollArea, textArea = getElementsForTitle(winTitle)
-  if not textArea then return end
-  local caret = M.getCaretPosition(textArea)
-  if not caret then return end
-  local scroll = getScrollValue(scrollArea)
-  local key = keyForTitle(winTitle)
-  positions[key] = {caret = caret, scroll = scroll}
-  savePositions()
-  print(string.format("[bear-hud] Saved caret=%d scroll=%s for '%s'",
-    caret, scroll and string.format("%.4f", scroll) or "nil", key))
+  local ok, err = pcall(function()
+    local scrollArea, textArea = getElementsForTitle(winTitle)
+    if not textArea then return end
+    local caret = M.getCaretPosition(textArea)
+    if not caret then return end
+    local scroll = getScrollValue(scrollArea)
+    local key = keyForTitle(winTitle)
+    local old = positions[key]
+    if not old or old.caret ~= caret or old.scroll ~= scroll then
+      positions[key] = {caret = caret, scroll = scroll}
+      dirty = true
+    end
+    savePositions()
+    print(string.format("[bear-hud] Saved caret=%d scroll=%s for '%s'",
+      caret, scroll and string.format("%.4f", scroll) or "nil", key))
+  end)
+  if not ok then
+    print("[bear-hud] AX error in savePositionForTitle: " .. tostring(err))
+  end
 end
 
 -- Save the current caret + scroll position for the active Bear note
@@ -235,20 +234,25 @@ end
 
 -- Restore the saved caret + scroll position for the current Bear note
 function M.restoreCurrentPosition()
-  local title = M.getCurrentNoteTitle()
-  if not title then return end
-  local key = keyForTitle(title)
-  local saved = positions[key]
-  if not saved then
-    print(string.format("[bear-hud] No saved position for '%s'", key))
-    return
-  end
-  local scrollArea, textArea = getElementsForTitle(title)
-  if textArea then
-    M.setCaretPosition(textArea, saved.caret)
-    setScrollValue(scrollArea, saved.scroll)
-    print(string.format("[bear-hud] Restored caret=%d scroll=%s for '%s'",
-      saved.caret, saved.scroll and string.format("%.4f", saved.scroll) or "nil", key))
+  local ok, err = pcall(function()
+    local title = M.getCurrentNoteTitle()
+    if not title then return end
+    local key = keyForTitle(title)
+    local saved = positions[key]
+    if not saved then
+      print(string.format("[bear-hud] No saved position for '%s'", key))
+      return
+    end
+    local scrollArea, textArea = getElementsForTitle(title)
+    if textArea then
+      M.setCaretPosition(textArea, saved.caret)
+      setScrollValue(scrollArea, saved.scroll)
+      print(string.format("[bear-hud] Restored caret=%d scroll=%s for '%s'",
+        saved.caret, saved.scroll and string.format("%.4f", saved.scroll) or "nil", key))
+    end
+  end)
+  if not ok then
+    print("[bear-hud] AX error in restoreCurrentPosition: " .. tostring(err))
   end
 end
 
@@ -261,42 +265,48 @@ function M.restoreForNote(key, matchTitle)
 
   local function tryRestore()
     attempts = attempts + 1
-    local currentTitle = M.getCurrentNoteTitle()
+    local ok, err = pcall(function()
+      local currentTitle = M.getCurrentNoteTitle()
 
-    -- If matchTitle is set, wait for that specific title
-    -- If not (id-based open), accept any Bear window that has a text area
-    if matchTitle and currentTitle ~= matchTitle then
+      -- If matchTitle is set, wait for that specific title
+      -- If not (id-based open), accept any Bear window that has a text area
+      if matchTitle and currentTitle ~= matchTitle then
+        if attempts < maxAttempts then
+          hs.timer.doAfter(0.1, tryRestore)
+        else
+          print(string.format("[bear-hud] Gave up waiting for '%s' after %d attempts", matchTitle, attempts))
+        end
+        return
+      end
+
+      local scrollArea, textArea = getElementsForTitle(currentTitle)
+      if textArea then
+        -- For id-based opens, learn the title→id mapping now
+        if not matchTitle and currentTitle and currentTitle ~= "" then
+          titleToId[currentTitle] = key
+          dirty = true
+        end
+
+        local saved = positions[key]
+        if saved then
+          M.setCaretPosition(textArea, saved.caret)
+          setScrollValue(scrollArea, saved.scroll)
+          print(string.format("[bear-hud] Restored caret=%d scroll=%s for '%s' (attempt %d)",
+            saved.caret, saved.scroll and string.format("%.4f", saved.scroll) or "nil",
+            key, attempts))
+        end
+        savePositions()
+        return
+      end
+
       if attempts < maxAttempts then
         hs.timer.doAfter(0.1, tryRestore)
       else
-        print(string.format("[bear-hud] Gave up waiting for '%s' after %d attempts", matchTitle, attempts))
+        print(string.format("[bear-hud] Gave up restoring '%s' after %d attempts", key, attempts))
       end
-      return
-    end
-
-    local scrollArea, textArea = getElementsForTitle(currentTitle)
-    if textArea then
-      -- For id-based opens, learn the title→id mapping now
-      if not matchTitle and currentTitle and currentTitle ~= "" then
-        titleToId[currentTitle] = key
-      end
-
-      local saved = positions[key]
-      if saved then
-        M.setCaretPosition(textArea, saved.caret)
-        setScrollValue(scrollArea, saved.scroll)
-        print(string.format("[bear-hud] Restored caret=%d scroll=%s for '%s' (attempt %d)",
-          saved.caret, saved.scroll and string.format("%.4f", saved.scroll) or "nil",
-          key, attempts))
-      end
-      savePositions()
-      return
-    end
-
-    if attempts < maxAttempts then
-      hs.timer.doAfter(0.1, tryRestore)
-    else
-      print(string.format("[bear-hud] Gave up restoring '%s' after %d attempts", key, attempts))
+    end)
+    if not ok then
+      print("[bear-hud] AX error in restoreForNote: " .. tostring(err))
     end
   end
 
@@ -517,6 +527,7 @@ function M.init(scriptPath, focus)
       -- Learn title→id mapping if both are provided
       if title and id then
         titleToId[title] = id
+        dirty = true
       end
 
       -- Open the note in Bear
@@ -538,17 +549,22 @@ function M.init(scriptPath, focus)
   end)
 
   -- Auto-save: periodic timer while Bear is active, plus save on deactivate
+  local function guardedSave()
+    if saveInFlight then return end
+    saveInFlight = true
+    M.saveCurrentPosition()
+    saveInFlight = false
+  end
+
   appWatcher = hs.application.watcher.new(function(appName, eventType, app)
     if appName ~= "Bear" then return end
     if eventType == hs.application.watcher.activated then
       if not saveTimer then
-        saveTimer = hs.timer.doEvery(3, function()
-          M.saveCurrentPosition()
-        end)
+        saveTimer = hs.timer.doEvery(1800, guardedSave)
       end
     elseif eventType == hs.application.watcher.deactivated then
       if saveTimer then saveTimer:stop(); saveTimer = nil end
-      M.saveCurrentPosition()
+      guardedSave()
     end
   end)
   appWatcher:start()
@@ -556,9 +572,7 @@ function M.init(scriptPath, focus)
   -- If Bear is already active at init time, start the timer
   local bear = hs.application.get("Bear")
   if bear and bear:isFrontmost() then
-    saveTimer = hs.timer.doEvery(3, function()
-      M.saveCurrentPosition()
-    end)
+    saveTimer = hs.timer.doEvery(1800, guardedSave)
   end
 
   -- Load note hotkeys from bear-notes.json
