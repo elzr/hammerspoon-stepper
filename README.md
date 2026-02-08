@@ -178,6 +178,16 @@ hammerspoon://open-bear-note?id=<note id>
 Hold **fn** and drag to move the window under the cursor.
 Useful for apps where other window managers don't work (Kitty, Bear, etc.).
 
+Hold **fn + shift** and drag to resize. The window is divided into a 3x3 grid — where you start dragging determines the resize behavior:
+
+| Cursor position | Resize behavior |
+|----------------|-----------------|
+| Corner (e.g. top-left) | Resize from that corner; opposite corner stays fixed |
+| Edge (e.g. right) | Resize that edge only; opposite edge stays fixed |
+| Center | Move the window (same as fn-only) |
+
+Releasing shift or fn stops the resize cleanly.
+
 ## Dependencies
 
 - [WinWin Spoon](http://www.hammerspoon.org/Spoons/WinWin.html)
