@@ -421,29 +421,41 @@ local function openNoteInBear(title)
   hs.urlevent.openURL(bearURL)
 end
 
--- Handle a note hotkey press (implements the 4-state machine)
+-- Center a window on the mouse cursor, clamped to screen bounds
+local function centerOnCursor(win)
+  local mouse = hs.mouse.absolutePosition()
+  local frame = win:frame()
+  local screen = hs.mouse.getCurrentScreen():frame()
+  local newX = math.max(screen.x, math.min(mouse.x - frame.w/2, screen.x + screen.w - frame.w))
+  local newY = math.max(screen.y, math.min(mouse.y - frame.h/2, screen.y + screen.h - frame.h))
+  hs.window.animationDuration = 0
+  win:setFrame({x = newX, y = newY, w = frame.w, h = frame.h})
+  hs.window.animationDuration = 0.3
+end
+
+-- Handle a note hotkey press (implements the state machine)
 local function handleNoteHotkey(noteTitle)
   print(string.format("[bear-hud] Hotkey for '%s'", noteTitle))
 
   local state = summonedNotes[noteTitle]
   local noteWin = findBearWindowByTitle(noteTitle)
 
-  -- State 4: summoned → return to original position + refocus previous window
+  -- Summoned → refocus previous window, then restore original position behind it
   if state and state.originalFrame then
     print(string.format("[bear-hud] Unsummoning '%s'", noteTitle))
-    local orig = state.originalFrame
-    hs.window.animationDuration = 0
-    noteWin:setFrame(orig)
-    hs.window.animationDuration = 0.3
     if state.previousWin and state.previousWin:isVisible() then
       focusModule.focusSingleWindow(state.previousWin)
       focusModule.flashFocusHighlight(state.previousWin, nil)
     end
+    local orig = state.originalFrame
+    hs.window.animationDuration = 0
+    noteWin:setFrame(orig)
+    hs.window.animationDuration = 0.3
     summonedNotes[noteTitle] = nil
     return
   end
 
-  -- State 1: not open → open via bear:// URL
+  -- Not open → open via bear:// URL
   if not noteWin then
     print(string.format("[bear-hud] Opening '%s'", noteTitle))
     M.saveCurrentPosition()
@@ -468,30 +480,40 @@ local function handleNoteHotkey(noteTitle)
     return
   end
 
-  -- State 3: open AND focused → center on mouse cursor
   local focusedWin = hs.window.focusedWindow()
+
+  -- Already focused → summon to cursor (for different-screen or re-summon cases)
   if focusedWin and focusedWin:id() == noteWin:id() then
     print(string.format("[bear-hud] Summoning '%s' to cursor", noteTitle))
-    local mouse = hs.mouse.absolutePosition()
-    local frame = noteWin:frame()
-    local screen = hs.mouse.getCurrentScreen():frame()
-    -- Save original frame before moving
     if not state then
       state = {previousWin = nil}
     end
+    local frame = noteWin:frame()
     state.originalFrame = {x = frame.x, y = frame.y, w = frame.w, h = frame.h}
     summonedNotes[noteTitle] = state
-    -- Center on cursor, clamped to screen
-    local newX = math.max(screen.x, math.min(mouse.x - frame.w/2, screen.x + screen.w - frame.w))
-    local newY = math.max(screen.y, math.min(mouse.y - frame.h/2, screen.y + screen.h - frame.h))
-    hs.window.animationDuration = 0
-    noteWin:setFrame({x = newX, y = newY, w = frame.w, h = frame.h})
-    hs.window.animationDuration = 0.3
+    centerOnCursor(noteWin)
     focusModule.flashFocusHighlight(noteWin, nil)
     return
   end
 
-  -- State 2: open, not focused → raise + focus + highlight
+  -- Open, not focused, same screen → focus + summon to cursor in one step
+  local noteScreen = noteWin:screen()
+  local cursorScreen = hs.mouse.getCurrentScreen()
+  if noteScreen and cursorScreen and noteScreen:id() == cursorScreen:id() then
+    print(string.format("[bear-hud] Summoning '%s' (same screen)", noteTitle))
+    M.saveCurrentPosition()
+    local frame = noteWin:frame()
+    summonedNotes[noteTitle] = {
+      previousWin = focusedWin,
+      originalFrame = {x = frame.x, y = frame.y, w = frame.w, h = frame.h},
+    }
+    centerOnCursor(noteWin)
+    focusModule.focusSingleWindow(noteWin)
+    focusModule.flashFocusHighlight(noteWin, nil)
+    return
+  end
+
+  -- Open, not focused, different screen → just raise + focus
   print(string.format("[bear-hud] Raising '%s'", noteTitle))
   M.saveCurrentPosition()
   summonedNotes[noteTitle] = {previousWin = focusedWin}
