@@ -11,7 +11,7 @@ stepper/
 ├── stepper.lua           # Main entry point, key bindings, core window operations
 ├── focus.lua             # Focus navigation, occlusion detection, visual highlights
 ├── mousedrag.lua         # Cmd+Opt+Ctrl mouse drag to move windows
-├── focus-architecture.md # Technical notes on focus implementation
+├── docs/                 # Architecture notes and decision records
 ├── CLAUDE.md             # This file
 └── README.md             # User-facing documentation
 ```

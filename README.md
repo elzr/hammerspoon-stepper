@@ -9,7 +9,7 @@ Stepper is built around **interactive steps, not preset sizes**. Instead of snap
 - **Piecemeal**: Each keypress makes a small change. Repeat to continue.
 - **Reversible**: Every action can be undone by the opposite action.
 - **No presets**: No half-screen, no thirds, no memorized layouts. Just steps.
-- **Edge-aware**: Windows "stick" to edges and behave intelligently at boundaries.
+- **Predictable**: The same key always does the same thing, regardless of window position.
 - **Instant**: No animations. All operations happen immediately.
 
 ### Why Not a Tiling Manager?
@@ -19,7 +19,7 @@ Traditional tiling managers offer two extremes: rigid presets ("snap to left hal
 - **Iterative**: Both position and size are adjusted incrementally. Hold the key to keep going.
 - **Overlapping-friendly**: Windows can overlap naturally. No forced tiling grid.
 - **Organic layouts**: Your arrangement emerges from small adjustments, not preset templates.
-- **Context-aware**: The same key does different things depending on where your window is.
+- **Predictable**: The same key always does the same thing. No hidden modes or position-dependent behavior.
 
 The result feels more like sculpting than snapping.
 
@@ -41,32 +41,14 @@ All bindings use **fn + modifier + arrow keys** (Home/End/PageUp/PageDown):
 
 ## Step Resize Behavior (fn + shift + arrows)
 
-The smart resize adapts based on which screen edges the window is touching.
+Resize from the bottom-right corner. The arrow keys move that corner in the indicated direction:
 
-### Horizontal (left/right)
+- **left/up**: shrink (pull the corner inward)
+- **right/down**: grow (push the corner outward)
 
-| Window Position | fn+shift+left | fn+shift+right |
-|-----------------|---------------|----------------|
-| **Full width** (both edges) | shrink from left | shrink from right |
-| **At left edge only** | grow rightward | shrink from right |
-| **At right edge only** | shrink from left | grow leftward |
-| **Middle** (no edge) | shrink from right | grow rightward |
+The top-left corner stays fixed. Use ctrl+arrow to re-snap to an edge after resizing.
 
-### Vertical (up/down)
-
-| Window Position | fn+shift+up | fn+shift+down |
-|-----------------|-------------|---------------|
-| **Full height** (both edges) | shrink from top | shrink from bottom |
-| **At top edge only** | grow downward | shrink from bottom |
-| **At bottom edge only** | shrink from top | grow downward |
-| **Middle** (no edge) | shrink from bottom | grow downward |
-
-### Why This Complexity?
-
-Without this logic, resizing a window that fills the screen would push it to another monitor. The smart resize ensures:
-- Windows "stuck" at an edge stay stuck while resizing
-- Each direction can undo the other's action
-- Full-size windows won't accidentally jump to another screen
+**Wraparound**: When growing hits a screen edge, the resize wraps to shrinking from the opposite side. For example, a window at the top of the screen can be resized down until it fills the screen, then continued presses shrink it from the top while staying stuck to the bottom.
 
 ## Other Operations
 

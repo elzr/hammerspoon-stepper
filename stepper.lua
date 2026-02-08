@@ -187,93 +187,31 @@ local function resizeToEdge(dir)
 end
 
 local function smartStepResize(dir)
-  local win, frame, screen = setupWindowOperation()
+  local win = hs.window.focusedWindow()
   if not win then return end
-  local bottom_edge = screen.y + screen.h - frame.h
-  local right_edge = screen.x + screen.w - frame.w
-  local snap = 5  -- tolerance for edge detection (Retina subpixel rounding)
 
-  if dir == "left" then
-    if frame.x <= screen.x + snap and frame.x < right_edge then --REVERT resize to GROW from left edge
-      flashEdgeHighlight(screen, "left")
-      stepResize("right")
-      -- Re-snap to left edge (Retina subpixel rounding can cause drift)
-      local f = win:frame()
-      f.x = screen.x
-      instant(function() win:setFrame(f) end)
-      return
-    end
-    if frame.x >= right_edge - snap then --SHRINK resize as if STUCK at right edge
-      flashEdgeHighlight(screen, "right")
-      stepResize("left")
-      -- Re-snap to right edge (Retina subpixel rounding can cause drift)
-      local f = win:frame()
-      f.x = screen.x + screen.w - f.w
-      instant(function() win:setFrame(f) end)
-      return
-    end
-  elseif dir == "right" then
-    if frame.x <= screen.x + snap then --SHRINK resize as if STUCK at left edge
-      flashEdgeHighlight(screen, "left")
-      stepResize("left")
-      -- Re-snap to left edge (Retina subpixel rounding can cause drift)
-      local f = win:frame()
-      f.x = screen.x
-      instant(function() win:setFrame(f) end)
-      return
-    end
-    if frame.x >= right_edge - snap then --REVERT resize to GROW from right edge
-      flashEdgeHighlight(screen, "right")
-      stepMove("left")
-      stepResize("right")
-      -- Re-snap to right edge (Retina subpixel rounding can cause drift)
-      local f = win:frame()
-      f.x = screen.x + screen.w - f.w
-      instant(function() win:setFrame(f) end)
-      return
-    end
-  elseif dir == "up" then
-    if frame.y <= screen.y + snap and frame.y < bottom_edge then --REVERT resize to GROW from top edge
-      flashEdgeHighlight(screen, "up")
-      stepResize("down")
-      -- Re-snap to top edge (Retina subpixel rounding can cause drift)
-      local f = win:frame()
-      f.y = screen.y
-      instant(function() win:setFrame(f) end)
-      return
-    end
-    if frame.y >= bottom_edge - snap then --SHRINK resize as if STUCK at bottom edge
-      flashEdgeHighlight(screen, "down")
-      stepResize("up")
-      -- Re-snap to bottom edge (Retina subpixel rounding can cause drift)
-      local f = win:frame()
-      f.y = screen.y + screen.h - f.h
-      instant(function() win:setFrame(f) end)
-      return
-    end
-  elseif dir == "down" then
-    if frame.y <= screen.y + snap then --SHRINK resize as if STUCK at top edge
-      flashEdgeHighlight(screen, "up")
-      stepResize("up")
-      -- Re-snap to top edge (Retina subpixel rounding can cause drift)
-      local f = win:frame()
-      f.y = screen.y
-      instant(function() win:setFrame(f) end)
-      return
-    end
-    if frame.y >= bottom_edge - snap then --REVERT resize to GROW from bottom edge
-      flashEdgeHighlight(screen, "down")
-      stepMove("up")
-      stepResize("down")
-      -- Re-snap to bottom edge (Retina subpixel rounding can cause drift)
-      local f = win:frame()
-      f.y = screen.y + screen.h - f.h
-      instant(function() win:setFrame(f) end)
-      return
-    end
+  local frame = win:frame()
+  local screen = win:screen():frame()
+  local snap = 5
+
+  if dir == "down" and frame.y + frame.h >= screen.y + screen.h - snap then
+    -- Wraparound: bottom edge at screen bottom, shrink from top instead
+    stepResize("up")
+    local f = win:frame()
+    f.y = screen.y + screen.h - f.h
+    instant(function() win:setFrame(f) end)
+    return
   end
 
-  -- Default to WinWin's step resize if no custom logic matches
+  if dir == "right" and frame.x + frame.w >= screen.x + screen.w - snap then
+    -- Wraparound: right edge at screen right, shrink from left instead
+    stepResize("left")
+    local f = win:frame()
+    f.x = screen.x + screen.w - f.w
+    instant(function() win:setFrame(f) end)
+    return
+  end
+
   stepResize(dir)
 end
 
