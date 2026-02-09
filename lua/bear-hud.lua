@@ -525,9 +525,9 @@ end
 -- URL handler + auto-save watcher + note hotkeys
 -- =============================================================================
 
-function M.init(scriptPath, focus)
+function M.init(projectRoot, focus)
   focusModule = focus
-  positionsFile = scriptPath .. "bear-hud-positions.json"
+  positionsFile = projectRoot .. "data/bear-hud-positions.json"
   loadPositions()
 
   -- URL handler: hammerspoon://open-bear-note?title=<title> or ?id=<id>
@@ -598,7 +598,7 @@ function M.init(scriptPath, focus)
   end
 
   -- Load note hotkeys from bear-notes.json
-  local notesFile = scriptPath .. "bear-notes.json"
+  local notesFile = projectRoot .. "data/bear-notes.json"
   local nf = io.open(notesFile, "r")
   if nf then
     local content = nf:read("*a")

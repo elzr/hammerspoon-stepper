@@ -95,6 +95,8 @@ Move the focused window directly to a specific display:
 
 These are direct arrow keys (no fn needed). The window's offset from the screen origin is preserved. If the window would extend beyond the target screen, it's clamped to stay fully visible. If too large, it shrinks to fit — the original dimensions are remembered and automatically restored when moving to a screen where they fit.
 
+**Repeat to undo**: pressing the same combo again within 1 hour moves the window back to its original screen, position, and size. A different combo starts a new move (overwriting the undo memory for that window).
+
 ### Center Toggle (fn + shift + option + up)
 Progressive centering:
 1. First press: center vertically
@@ -183,12 +185,12 @@ hammerspoon://open-bear-note?id=<note id>
 - **Auto-save**: Every 3s while Bear is frontmost + on Bear deactivate
 - **ID support**: When opened by `id`, learns the title→id mapping so auto-save works by id
 
-## Mouse Drag
+## Mouse Move
 
-Hold **fn** and drag to move the window under the cursor.
+Hold **fn** and move the mouse to reposition the window under the cursor.
 Useful for apps where other window managers don't work (Kitty, Bear, etc.).
 
-Hold **fn + shift** and drag to resize. The window is divided into a 3x3 grid — where you start dragging determines the resize behavior:
+Hold **fn + shift** and move to resize. The window is divided into a 3x3 grid — where you grab determines the resize behavior:
 
 | Cursor position | Resize behavior |
 |----------------|-----------------|
@@ -196,7 +198,7 @@ Hold **fn + shift** and drag to resize. The window is divided into a 3x3 grid �
 | Edge (e.g. right) | Resize that edge only; opposite edge stays fixed |
 | Center | Move the window (same as fn-only) |
 
-Releasing shift or fn stops the resize cleanly.
+Releasing shift or fn stops the operation cleanly.
 
 ## Dependencies
 

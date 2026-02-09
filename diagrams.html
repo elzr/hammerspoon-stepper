@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stepper Diagrams</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --surface: #161b22;
+    --border: #30363d;
+    --blue-bg: rgba(88, 166, 255, 0.08);
+    --blue-border: rgba(88, 166, 255, 0.22);
+    --blue-fill: rgba(88, 166, 255, 0.15);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, SF Pro Text, system-ui, sans-serif;
+    padding: 1.5rem;
+    line-height: 1.4;
+  }
+  header { margin-bottom: 1.5rem; }
+  h1 { font-size: 1.4rem; font-weight: 700; }
+  h1 span { color: var(--accent); }
+  .subtitle { color: var(--muted); font-size: 0.82rem; margin-top: 0.2rem; }
+  .legend {
+    display: flex; gap: 1.2rem; flex-wrap: wrap;
+    margin-top: 0.75rem; font-size: 0.78rem; color: var(--muted);
+  }
+  .legend span { color: var(--fg); font-weight: 500; }
+
+  .flow {
+    display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: flex-start;
+  }
+  .card {
+    background: var(--surface);
+    border-radius: 10px;
+    padding: 1.25rem;
+    border: 1px solid var(--border);
+    flex: 0 1 auto;
+    max-width: calc(100vw - 3rem);
+  }
+  .card h3 {
+    font-size: 0.7rem; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.05em;
+    margin-bottom: 0.75rem;
+  }
+  .dia {
+    display: flex; justify-content: center; align-items: center;
+    min-height: 60px;
+  }
+  .dia svg { display: block; height: auto; }
+  .loading { color: var(--muted); font-size: 0.75rem; font-style: italic; }
+
+  /* Shared blue key combo styling */
+  .kc { color: var(--accent); font-weight: 500; }
+
+  /* Cross/spatial layout (snap, resize-edge, display, focus, etc.) */
+  .cross {
+    display: grid;
+    grid-template-columns: 130px 180px 130px;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      ".    top    ."
+      "left center right"
+      ".    bottom .";
+    gap: 6px;
+    justify-content: center;
+  }
+  .cross.wide {
+    grid-template-columns: 150px 140px 150px;
+  }
+  .cross .c {
+    background: var(--blue-bg);
+    border: 1px solid var(--blue-border);
+    border-radius: 6px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 0.5rem; gap: 3px;
+    min-height: 55px;
+  }
+  .cross .c .kc { font-size: 0.82rem; }
+  .cross .c .label { color: var(--muted); font-size: 0.72rem; }
+  .cross .c.top { grid-area: top; }
+  .cross .c.left { grid-area: left; min-height: 80px; }
+  .cross .c.center { grid-area: center; min-height: 80px; }
+  .cross .c.right { grid-area: right; min-height: 80px; }
+  .cross .c.bottom { grid-area: bottom; }
+  .cross .c.center-neutral {
+    background: transparent;
+    border-style: dashed;
+    border-color: var(--border);
+  }
+  .undo-note {
+    text-align: center; margin-top: 0.6rem;
+    font-size: 0.72rem; color: var(--muted);
+  }
+
+  /* State sequence (half/third, center, maximize) */
+  .seq {
+    display: flex; align-items: center; gap: 0.6rem;
+    flex-wrap: wrap;
+  }
+  .seq + .seq { margin-top: 0.75rem; }
+  .seq .arrow {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 1px; font-size: 0.72rem; color: var(--muted);
+  }
+  .seq .arrow .kc { font-size: 0.72rem; }
+  .seq .state {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .seq .state .label { font-size: 0.7rem; color: var(--muted); }
+
+  /* Mini screen for spatial states */
+  .ms {
+    width: 76px; height: 48px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--bg);
+    position: relative; overflow: hidden;
+  }
+  .ms .w {
+    position: absolute;
+    background: var(--blue-fill);
+    border: 1px solid var(--blue-border);
+    border-radius: 2px;
+  }
+
+  /* 3x3 mouse grid */
+  .grid3 {
+    display: grid;
+    grid-template-columns: repeat(3, 90px);
+    grid-template-rows: repeat(3, 56px);
+    gap: 4px;
+    justify-content: center;
+  }
+  .grid3 .gc {
+    background: var(--blue-bg);
+    border: 1px solid var(--blue-border);
+    border-radius: 5px;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 2px;
+  }
+  .grid3 .gc .zone { font-size: 0.85rem; color: var(--fg); }
+  .grid3 .gc .action { font-size: 0.62rem; color: var(--muted); }
+  .grid3 .gc.move-cell {
+    background: rgba(88, 166, 255, 0.18);
+    border-color: rgba(88, 166, 255, 0.35);
+  }
+
+  /* Bear note bindings */
+  .notes-list { display: flex; flex-direction: column; gap: 0.4rem; }
+  .notes-list .nr {
+    display: flex; align-items: center; gap: 0.6rem;
+    font-size: 0.82rem;
+    padding: 0.3rem 0.5rem;
+    background: var(--blue-bg);
+    border: 1px solid var(--blue-border);
+    border-radius: 5px;
+  }
+  .notes-list .nr .kc { min-width: 2rem; font-size: 0.82rem; }
+  .notes-list .group-label {
+    font-size: 0.65rem; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.05em;
+    margin: 0.4rem 0 0.1rem;
+  }
+  .notes-list .group-label:first-child { margin-top: 0; }
+
+  /* Visual cross with mini-screen illustrations */
+  .cross.vis {
+    grid-template-columns: 100px 100px 100px;
+  }
+  .cross.vis .c {
+    padding: 0.3rem; gap: 3px; min-height: auto;
+  }
+  .cross.vis .c.left, .cross.vis .c.right { min-height: auto; }
+  .cross.vis .ms { width: 72px; height: 45px; margin: 0 auto; }
+  .cross.vis .c .kc { font-size: 0.75rem; }
+  .cross.vis .c .label { font-size: 0.68rem; }
+  /* Window ghost outline (before state) */
+  .wo {
+    position: absolute;
+    border: 1px dashed rgba(139, 148, 158, 0.35);
+    border-radius: 2px;
+  }
+
+  /* Modifier escalation HTML */
+  .esc { text-align: center; }
+  .esc-root {
+    display: inline-block;
+    background: var(--blue-bg); border: 1px solid var(--blue-border);
+    border-radius: 6px; padding: 0.45rem 1rem; font-size: 0.82rem;
+  }
+  .esc-stem { width: 1px; height: 20px; background: var(--border); margin: 0 auto; }
+  .esc-ops { display: flex; justify-content: center; gap: 5px; flex-wrap: wrap; margin-top: 0.4rem; }
+  .esc-item {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    background: var(--blue-bg); border: 1px solid var(--blue-border);
+    border-radius: 6px; padding: 0.3rem 0.5rem; min-width: 65px;
+  }
+  .esc-item .mod { font-size: 0.78rem; }
+  .esc-item .name { font-size: 0.72rem; color: var(--fg); font-weight: 500; }
+
+  /* Operations overview HTML */
+  .ops { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ops-group {
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 0.45rem; min-width: 110px;
+  }
+  .ops-group-hd {
+    font-size: 0.62rem; font-weight: 600; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.35rem;
+  }
+  .ops-pill {
+    display: flex; align-items: center; gap: 0.35rem;
+    background: var(--blue-bg); border: 1px solid var(--blue-border);
+    border-radius: 5px; padding: 0.22rem 0.45rem;
+    font-size: 0.72rem; margin-bottom: 3px;
+  }
+  .ops-pill:last-child { margin-bottom: 0; }
+  .ops-pill .kc { min-width: 1.6rem; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span>&#x2328;</span> Stepper Diagrams</h1>
+  <p class="subtitle">Hammerspoon window management — all keybindings visualized</p>
+  <div class="legend">
+    <div><span>&#x2303;</span> Control</div>
+    <div><span>&#x2325;</span> Option</div>
+    <div><span>&#x21E7;</span> Shift</div>
+    <div><span>&#x2318;</span> Command</div>
+    <div><span>&#x25C6;</span> Hyperkey</div>
+    <div><span>fn</span> + arrow = Home/End/PgUp/PgDn</div>
+  </div>
+</header>
+
+<div class="flow">
+
+  <!-- Modifier Escalation (HTML) -->
+  <div class="card">
+    <h3>Modifier Escalation</h3>
+    <div class="esc">
+      <div class="esc-root">fn + arrows</div>
+      <div class="esc-stem"></div>
+      <div class="esc-ops">
+        <div class="esc-item"><span class="mod" style="color:var(--muted)">none</span><span class="name">Move</span></div>
+        <div class="esc-item"><span class="mod kc">⇧</span><span class="name">Resize</span></div>
+        <div class="esc-item"><span class="mod kc">⌃</span><span class="name">Snap to Edge</span></div>
+        <div class="esc-item"><span class="mod kc">⌃⇧</span><span class="name">Resize to Edge</span></div>
+        <div class="esc-item"><span class="mod kc">⌥</span><span class="name">Shrink / Grow</span></div>
+        <div class="esc-item"><span class="mod kc">⇧⌥</span><span class="name">Layout Toggles</span></div>
+        <div class="esc-item"><span class="mod kc">⌘</span><span class="name">Focus Same</span></div>
+        <div class="esc-item"><span class="mod kc">⌥⌘</span><span class="name">Focus Other</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Operations Overview (HTML) -->
+  <div class="card">
+    <h3>Operations Overview</h3>
+    <div class="ops">
+      <div class="ops-group">
+        <div class="ops-group-hd">Position</div>
+        <div class="ops-pill"><span class="kc" style="color:var(--muted)">none</span> Step Move</div>
+        <div class="ops-pill"><span class="kc">⌃</span> Snap to Edge</div>
+        <div class="ops-pill"><span class="kc">⌃⌥</span> Move to Display</div>
+      </div>
+      <div class="ops-group">
+        <div class="ops-group-hd">Size</div>
+        <div class="ops-pill"><span class="kc">⇧</span> Step Resize</div>
+        <div class="ops-pill"><span class="kc">⌃⇧</span> Resize to Edge</div>
+        <div class="ops-pill"><span class="kc">⌥</span> Shrink / Grow</div>
+      </div>
+      <div class="ops-group">
+        <div class="ops-group-hd">Layout</div>
+        <div class="ops-pill"><span class="kc">⇧⌥ ←→</span> Half / Third</div>
+        <div class="ops-pill"><span class="kc">⇧⌥↑</span> Center</div>
+        <div class="ops-pill"><span class="kc">⇧⌥↓</span> Maximize</div>
+      </div>
+      <div class="ops-group">
+        <div class="ops-group-hd">Focus</div>
+        <div class="ops-pill"><span class="kc">⌘</span> Same Screen</div>
+        <div class="ops-pill"><span class="kc">⌥⌘</span> Other Screen</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step Resize (visual cross with mini screens) -->
+  <div class="card">
+    <h3>Step Resize</h3>
+    <div class="cross vis">
+      <div class="c top">
+        <div class="ms"><div class="wo" style="left:22%;top:18%;width:38%;height:52%"></div><div class="w" style="left:22%;top:28%;width:38%;height:32%"></div></div>
+        <span class="kc">⇧↑</span><span class="label">Shorter</span>
+      </div>
+      <div class="c left">
+        <div class="ms"><div class="wo" style="left:22%;top:18%;width:38%;height:52%"></div><div class="w" style="left:32%;top:18%;width:22%;height:52%"></div></div>
+        <span class="kc">⇧←</span><span class="label">Narrower</span>
+      </div>
+      <div class="c center center-neutral">
+        <div class="ms"><div class="wo" style="left:22%;top:18%;width:38%;height:52%"></div></div>
+        <span class="label">before</span>
+      </div>
+      <div class="c right">
+        <div class="ms"><div class="wo" style="left:22%;top:18%;width:38%;height:52%"></div><div class="w" style="left:16%;top:18%;width:56%;height:52%"></div></div>
+        <span class="kc">⇧→</span><span class="label">Wider</span>
+      </div>
+      <div class="c bottom">
+        <div class="ms"><div class="wo" style="left:22%;top:18%;width:38%;height:52%"></div><div class="w" style="left:22%;top:12%;width:38%;height:70%"></div></div>
+        <span class="kc">⇧↓</span><span class="label">Taller</span>
+      </div>
+    </div>
+    <div class="undo-note">at screen edge → wraps to shrink from opposite side</div>
+  </div>
+
+  <!-- Snap to Edge (visual cross) -->
+  <div class="card">
+    <h3>Snap to Edge</h3>
+    <div class="cross vis">
+      <div class="c top">
+        <div class="ms"><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="left:28%;top:3%;width:35%;height:45%"></div></div>
+        <span class="kc">⌃↑</span><span class="label">Snap Top</span>
+      </div>
+      <div class="c left">
+        <div class="ms"><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="left:3%;top:25%;width:35%;height:45%"></div></div>
+        <span class="kc">⌃←</span><span class="label">Snap Left</span>
+      </div>
+      <div class="c center center-neutral">
+        <div class="ms"><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div></div>
+        <span class="label">before</span>
+      </div>
+      <div class="c right">
+        <div class="ms"><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="right:3%;top:25%;width:35%;height:45%"></div></div>
+        <span class="kc">⌃→</span><span class="label">Snap Right</span>
+      </div>
+      <div class="c bottom">
+        <div class="ms"><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="left:28%;bottom:3%;width:35%;height:45%"></div></div>
+        <span class="kc">⌃↓</span><span class="label">Snap Bottom</span>
+      </div>
+    </div>
+    <div class="undo-note">repeat → restore position</div>
+  </div>
+
+  <!-- Resize to Edge (visual cross) -->
+  <div class="card">
+    <h3>Resize to Edge</h3>
+    <div class="cross vis">
+      <div class="c top">
+        <div class="ms"><div class="wo" style="left:25%;top:30%;width:38%;height:40%"></div><div class="w" style="left:25%;top:3%;width:38%;height:67%"></div></div>
+        <span class="kc">⌃⇧↑</span><span class="label">Stretch Top</span>
+      </div>
+      <div class="c left">
+        <div class="ms"><div class="wo" style="left:30%;top:25%;width:35%;height:45%"></div><div class="w" style="left:3%;top:25%;width:62%;height:45%"></div></div>
+        <span class="kc">⌃⇧←</span><span class="label">Stretch Left</span>
+      </div>
+      <div class="c center center-neutral">
+        <div class="ms"><div class="wo" style="left:25%;top:25%;width:38%;height:45%"></div></div>
+        <span class="label">before</span>
+      </div>
+      <div class="c right">
+        <div class="ms"><div class="wo" style="left:25%;top:25%;width:38%;height:45%"></div><div class="w" style="left:25%;top:25%;right:3%;height:45%"></div></div>
+        <span class="kc">⌃⇧→</span><span class="label">Stretch Right</span>
+      </div>
+      <div class="c bottom">
+        <div class="ms"><div class="wo" style="left:25%;top:25%;width:38%;height:40%"></div><div class="w" style="left:25%;top:25%;width:38%;bottom:3%"></div></div>
+        <span class="kc">⌃⇧↓</span><span class="label">Stretch Bottom</span>
+      </div>
+    </div>
+    <div class="undo-note">repeat → restore size</div>
+  </div>
+
+  <!-- Shrink / Grow Toggles (visual cross) -->
+  <div class="card">
+    <h3>Shrink / Grow Toggles</h3>
+    <div class="cross vis">
+      <div class="c top">
+        <div class="ms"><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;width:38%;height:18%"></div></div>
+        <span class="kc">⌥↑</span><span class="label">Height to min</span>
+      </div>
+      <div class="c left">
+        <div class="ms"><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;width:14%;height:52%"></div></div>
+        <span class="kc">⌥←</span><span class="label">Width to min</span>
+      </div>
+      <div class="c center center-neutral">
+        <div class="ms"><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div></div>
+        <span class="label">before</span>
+      </div>
+      <div class="c right">
+        <div class="ms"><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;right:3%;height:52%"></div></div>
+        <span class="kc">⌥→</span><span class="label">Grow to right</span>
+      </div>
+      <div class="c bottom">
+        <div class="ms"><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;width:38%;bottom:3%"></div></div>
+        <span class="kc">⌥↓</span><span class="label">Grow to bottom</span>
+      </div>
+    </div>
+    <div class="undo-note">repeat → restore original size</div>
+  </div>
+
+  <!-- Half / Third Cycle (spatial mini screens) -->
+  <div class="card">
+    <h3>Half / Third Cycle</h3>
+    <div class="seq">
+      <div class="state"><div class="ms"><div class="w" style="left:15%;top:15%;width:35%;height:65%"></div></div><span class="label">Normal</span></div>
+      <div class="arrow"><span class="kc">⇧⌥←</span>→</div>
+      <div class="state"><div class="ms"><div class="w" style="left:2px;top:2px;bottom:2px;width:calc(50% - 3px)"></div></div><span class="label">Left Half</span></div>
+      <div class="arrow"><span class="kc">⇧⌥←</span>→</div>
+      <div class="state"><div class="ms"><div class="w" style="left:2px;top:2px;bottom:2px;width:calc(33% - 3px)"></div></div><span class="label">Left Third</span></div>
+      <div class="arrow"><span class="kc">⇧⌥←</span>→</div>
+      <div class="state"><span class="label" style="color:var(--accent)">back</span></div>
+    </div>
+    <div class="seq">
+      <div class="state"><div class="ms"><div class="w" style="right:20%;top:15%;width:35%;height:65%"></div></div><span class="label">Normal</span></div>
+      <div class="arrow"><span class="kc">⇧⌥→</span>→</div>
+      <div class="state"><div class="ms"><div class="w" style="right:2px;top:2px;bottom:2px;width:calc(50% - 3px)"></div></div><span class="label">Right Half</span></div>
+      <div class="arrow"><span class="kc">⇧⌥→</span>→</div>
+      <div class="state"><div class="ms"><div class="w" style="right:2px;top:2px;bottom:2px;width:calc(33% - 3px)"></div></div><span class="label">Right Third</span></div>
+      <div class="arrow"><span class="kc">⇧⌥→</span>→</div>
+      <div class="state"><span class="label" style="color:var(--accent)">back</span></div>
+    </div>
+  </div>
+
+  <!-- Center Toggle (spatial mini screens) -->
+  <div class="card">
+    <h3>Center Toggle</h3>
+    <div class="seq">
+      <div class="state"><div class="ms"><div class="w" style="left:8%;top:10%;width:40%;height:55%"></div></div><span class="label">Normal</span></div>
+      <div class="arrow"><span class="kc">⇧⌥↑</span>→</div>
+      <div class="state"><div class="ms"><div class="w" style="left:8%;top:50%;transform:translateY(-50%);width:40%;height:55%"></div></div><span class="label">Centered V</span></div>
+      <div class="arrow"><span class="kc">⇧⌥↑</span>→</div>
+      <div class="state"><div class="ms"><div class="w" style="left:50%;top:50%;transform:translate(-50%,-50%);width:40%;height:55%"></div></div><span class="label">Centered V+H</span></div>
+      <div class="arrow"><span class="kc">⇧⌥↑</span>→</div>
+      <div class="state"><span class="label" style="color:var(--accent)">back</span></div>
+    </div>
+  </div>
+
+  <!-- Maximize Toggle (spatial mini screens) -->
+  <div class="card">
+    <h3>Maximize Toggle</h3>
+    <div class="seq">
+      <div class="state"><div class="ms"><div class="w" style="left:12%;top:15%;width:45%;height:55%"></div></div><span class="label">Normal</span></div>
+      <div class="arrow"><span class="kc">⇧⌥↓</span>→</div>
+      <div class="state"><div class="ms"><div class="w" style="left:2px;top:2px;right:2px;bottom:2px"></div></div><span class="label">Maximized</span></div>
+      <div class="arrow"><span class="kc">⇧⌥↓</span>→</div>
+      <div class="state"><span class="label" style="color:var(--accent)">back</span></div>
+    </div>
+  </div>
+
+  <!-- Focus Same Screen (spatial cross) -->
+  <div class="card">
+    <h3>Focus — Same Screen</h3>
+    <div class="cross wide">
+      <div class="c top"><span class="kc">⌘↑</span><span class="label">Nearest above</span></div>
+      <div class="c left"><span class="kc">⌘←</span><span class="label">Nearest left</span></div>
+      <div class="c center center-neutral"><span style="font-size:0.75rem;color:var(--muted)">Focused</span></div>
+      <div class="c right"><span class="kc">⌘→</span><span class="label">Nearest right</span></div>
+      <div class="c bottom"><span class="kc">⌘↓</span><span class="label">Nearest below</span></div>
+    </div>
+    <div class="undo-note">wraps around screen edges</div>
+  </div>
+
+  <!-- Focus Cross Screen (spatial cross) -->
+  <div class="card">
+    <h3>Focus — Other Screen</h3>
+    <div class="cross wide">
+      <div class="c top"><span class="kc">⌥⌘↑</span><span class="label">Upper screen</span></div>
+      <div class="c left"><span class="kc">⌥⌘←</span><span class="label">Left screen</span></div>
+      <div class="c center center-neutral"><span style="font-size:0.75rem;color:var(--muted)">Current</span></div>
+      <div class="c right"><span class="kc">⌥⌘→</span><span class="label">Right screen</span></div>
+      <div class="c bottom"><span class="kc">⌥⌘↓</span><span class="label">Lower screen</span></div>
+    </div>
+    <div class="undo-note">focuses nearest window to source position</div>
+  </div>
+
+  <!-- Move to Display (spatial cross) -->
+  <div class="card">
+    <h3>Move to Display</h3>
+    <div class="cross">
+      <div class="c top"><span class="kc">⌃⌥↑</span><span class="label">Top</span></div>
+      <div class="c left"><span class="kc">⌃⌥←</span><span class="label">Left</span></div>
+      <div class="c center"><span class="kc">⌃⌥Enter</span><span class="label">Center</span></div>
+      <div class="c right"><span class="kc">⌃⌥→</span><span class="label">Right</span></div>
+      <div class="c bottom"><span class="kc">⌃⌥↓</span><span class="label">Built-in</span></div>
+    </div>
+    <div class="undo-note">repeat same key within 1 hr to undo</div>
+  </div>
+
+  <!-- Mouse Mode (mermaid) -->
+  <div class="card" id="card-mouse-mode">
+    <h3>Mouse — Mode Selection</h3>
+    <div class="dia"><span class="loading">rendering...</span></div>
+  </div>
+
+  <!-- Mouse 3x3 Grid (spatial) -->
+  <div class="card">
+    <h3>Mouse — 3x3 Resize Grid</h3>
+    <div class="grid3">
+      <div class="gc"><span class="zone">↖</span><span class="action">corner resize</span></div>
+      <div class="gc"><span class="zone">↑</span><span class="action">edge resize</span></div>
+      <div class="gc"><span class="zone">↗</span><span class="action">corner resize</span></div>
+      <div class="gc"><span class="zone">←</span><span class="action">edge resize</span></div>
+      <div class="gc move-cell"><span class="zone">✥</span><span class="action">move window</span></div>
+      <div class="gc"><span class="zone">→</span><span class="action">edge resize</span></div>
+      <div class="gc"><span class="zone">↙</span><span class="action">corner resize</span></div>
+      <div class="gc"><span class="zone">↓</span><span class="action">edge resize</span></div>
+      <div class="gc"><span class="zone">↘</span><span class="action">corner resize</span></div>
+    </div>
+    <div class="undo-note">fn+⇧ hold, grab position determines mode</div>
+  </div>
+
+  <!-- Bear Note Lifecycle (mermaid) -->
+  <div class="card" id="card-bear-cycle">
+    <h3>Bear Note Lifecycle</h3>
+    <div class="dia"><span class="loading">rendering...</span></div>
+  </div>
+
+  <!-- Bear Note Bindings (grouped HTML) -->
+  <div class="card">
+    <h3>Bear Note Bindings</h3>
+    <div class="notes-list">
+      <div class="group-label">Quick access</div>
+      <div class="nr"><span class="kc">◆N</span> <span>_mem NOW</span></div>
+      <div class="nr"><span class="kc">◆R</span> <span>_app rcmd</span></div>
+      <div class="group-label">Weekly</div>
+      <div class="nr"><span class="kc">◆D</span> <span>days</span></div>
+      <div class="nr"><span class="kc">◆W</span> <span>work</span></div>
+      <div class="nr"><span class="kc">◆T</span> <span>thoughts</span></div>
+      <div class="group-label">Reference</div>
+      <div class="nr"><span class="kc">◆S</span> <span>_topsight 2026</span></div>
+      <div class="nr"><span class="kc">◆I</span> <span>_index 2026</span></div>
+    </div>
+  </div>
+
+  <!-- Module Architecture (mermaid) -->
+  <div class="card" id="card-architecture">
+    <h3>Module Architecture</h3>
+    <div class="dia"><span class="loading">rendering...</span></div>
+  </div>
+
+</div>
+
+<script src="https://unpkg.com/beautiful-mermaid/dist/beautiful-mermaid.browser.global.js"></script>
+<script>
+const { renderMermaid, THEMES } = beautifulMermaid;
+const theme = THEMES['github-dark'];
+
+const diagrams = {
+
+  'card-mouse-mode': `graph TD
+    Idle[Idle] -->|hold fn| Move[Move Window]
+    Idle -->|hold fn+⇧| Check{Grab position?}
+    Check -->|corner| Corner[Resize Corner]
+    Check -->|edge| Edge[Resize Edge]
+    Check -->|center| Move
+    Move -->|release fn| Idle
+    Corner -->|release| Idle
+    Edge -->|release| Idle`,
+
+  'card-bear-cycle': `graph LR
+    Closed[Closed] -->|◆ key| Open[Open + restore caret]
+    Open -->|◆ key| Focused[Raise + focus]
+    Focused -->|◆ key| Summoned[Summon to cursor]
+    Summoned -->|◆ key| Closed`,
+
+  'card-architecture': `graph TD
+    Init[~/.hammerspoon/init.lua] -->|dofile| Stepper[stepper.lua — entry + bindings]
+    Stepper -->|dofile| Focus[focus.lua — navigation + border API]
+    Stepper -->|dofile| MouseMove[mousemove.lua — fn+mouse]
+    Stepper -->|dofile| ScreenSwitch[screenswitch.lua — cross-display]
+    Stepper -->|dofile| BearHUD[bear-hud.lua — note HUD + caret]
+    Stepper -->|loads| WinWin[WinWin Spoon]
+    Focus -->|border API| MouseMove
+    BearHUD -->|reads/writes| JSON[data/*.json]`,
+};
+
+async function renderAll() {
+  for (const [cardId, mermaidCode] of Object.entries(diagrams)) {
+    const card = document.getElementById(cardId);
+    if (!card) continue;
+    const container = card.querySelector('.dia');
+    if (!container) continue;
+    try {
+      const svgString = await renderMermaid(mermaidCode, theme);
+      container.innerHTML = svgString;
+      const svg = container.querySelector('svg');
+      if (svg) {
+        svg.style.background = 'transparent';
+        const vb = svg.getAttribute('viewBox');
+        if (vb) {
+          const vw = vb.split(/[\s,]+/).map(Number)[2];
+          svg.style.width = vw + 'px';
+          svg.style.maxWidth = '100%';
+          svg.style.height = 'auto';
+        }
+      }
+    } catch (e) {
+      container.innerHTML = '<span class="loading">Error: ' + e.message + '</span>';
+      console.error(cardId, e);
+    }
+  }
+}
+
+renderAll();
+</script>
+</body>
+</html>

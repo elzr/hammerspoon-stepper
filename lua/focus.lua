@@ -204,7 +204,7 @@ local function emphasisCoords(w, h, r, ox, oy, dir)
 end
 
 -- =============================================================================
--- Border canvas API (shared by focus highlight and mouse drag)
+-- Border canvas API (shared by focus highlight and mouse move)
 -- =============================================================================
 
 local borderThin = 4

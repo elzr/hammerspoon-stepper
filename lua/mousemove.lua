@@ -1,11 +1,11 @@
 -- =============================================================================
--- Mouse drag to move/resize window under cursor
+-- Mouse move/resize window under cursor
 -- =============================================================================
--- fn + drag        → move window
--- fn + shift + drag → resize window (nearest corner/edge algorithm)
+-- fn + move        → move window
+-- fn + shift + move → resize window (nearest corner/edge algorithm)
 --
 -- Useful for apps like Kitty and Bear where Better Touch Tool doesn't work.
--- Uses global _G.windowDrag table to prevent garbage collection of eventtaps
+-- Uses global _G.windowMove table to prevent garbage collection of eventtaps
 -- and includes zombie detection (eventtaps that report enabled but don't fire)
 
 local M = {}
@@ -15,29 +15,29 @@ local createBorderCanvas = nil
 local updateBorderCanvas = nil
 local deleteBorderCanvas = nil
 
--- Persistent drag border highlight
-local dragBorder = nil
+-- Persistent move border highlight
+local moveBorder = nil
 
-local function showDragBorder(frame, win)
-    if not dragBorder then
-        dragBorder = createBorderCanvas(frame, nil, win)
+local function showMoveBorder(frame, win)
+    if not moveBorder then
+        moveBorder = createBorderCanvas(frame, nil, win)
     else
-        updateBorderCanvas(dragBorder, frame)
+        updateBorderCanvas(moveBorder, frame)
     end
 end
 
-local function hideDragBorder()
-    if dragBorder then
-        deleteBorderCanvas(dragBorder)
-        dragBorder = nil
+local function hideMoveBorder()
+    if moveBorder then
+        deleteBorderCanvas(moveBorder)
+        moveBorder = nil
     end
 end
 
 -- Global state to prevent garbage collection
-_G.windowDrag = _G.windowDrag or {}
-_G.windowDrag.dragState = {
+_G.windowMove = _G.windowMove or {}
+_G.windowMove.moveState = {
     mode = "idle",        -- "idle", "move", "resize"
-    startedAs = "none",   -- "fnOnly" or "fnShift" — which combo initiated the drag
+    startedAs = "none",   -- "fnOnly" or "fnShift" — which combo initiated the move
     resizeDirX = "none",  -- "left", "right", or "none"
     resizeDirY = "none",  -- "top", "bottom", or "none"
     window = nil,
@@ -49,10 +49,10 @@ _G.windowDrag.dragState = {
     pendingDY = 0,
     frame = nil           -- cached frame during resize (avoids stale reads)
 }
-_G.windowDrag.mouseMoveHandler = nil
-_G.windowDrag.flagsHandler = nil
-_G.windowDrag.watchdog = nil
-_G.windowDrag.lastCallbackTime = hs.timer.secondsSinceEpoch()
+_G.windowMove.mouseMoveHandler = nil
+_G.windowMove.flagsHandler = nil
+_G.windowMove.watchdog = nil
+_G.windowMove.lastCallbackTime = hs.timer.secondsSinceEpoch()
 
 local function getWindowUnderMouse()
     local mousePos = hs.mouse.absolutePosition()
@@ -83,83 +83,83 @@ end
 local RESIZE_INTERVAL = 0.033  -- ~30fps resize timer
 
 local function stopResizeTimer()
-    if _G.windowDrag.resizeTimer then
-        _G.windowDrag.resizeTimer:stop()
-        _G.windowDrag.resizeTimer = nil
+    if _G.windowMove.resizeTimer then
+        _G.windowMove.resizeTimer:stop()
+        _G.windowMove.resizeTimer = nil
     end
 end
 
 local function startResizeTimer()
     stopResizeTimer()
-    _G.windowDrag.resizeTimer = hs.timer.doEvery(RESIZE_INTERVAL, function()
-        local dragState = _G.windowDrag.dragState
-        if dragState.mode ~= "resize" or not dragState.window then
+    _G.windowMove.resizeTimer = hs.timer.doEvery(RESIZE_INTERVAL, function()
+        local moveState = _G.windowMove.moveState
+        if moveState.mode ~= "resize" or not moveState.window then
             stopResizeTimer()
             return
         end
-        local tdx = dragState.pendingDX
-        local tdy = dragState.pendingDY
+        local tdx = moveState.pendingDX
+        local tdy = moveState.pendingDY
         if tdx == 0 and tdy == 0 then return end
-        dragState.pendingDX = 0
-        dragState.pendingDY = 0
+        moveState.pendingDX = 0
+        moveState.pendingDY = 0
 
-        local f = dragState.frame
+        local f = moveState.frame
 
-        if dragState.resizeDirX == "left" then
+        if moveState.resizeDirX == "left" then
             f.x = f.x + tdx
             f.w = f.w - tdx
-        elseif dragState.resizeDirX == "right" then
+        elseif moveState.resizeDirX == "right" then
             f.w = f.w + tdx
         end
 
-        if dragState.resizeDirY == "top" then
+        if moveState.resizeDirY == "top" then
             f.y = f.y + tdy
             f.h = f.h - tdy
-        elseif dragState.resizeDirY == "bottom" then
+        elseif moveState.resizeDirY == "bottom" then
             f.h = f.h + tdy
         end
 
         local prev = hs.window.animationDuration
         hs.window.animationDuration = 0
-        dragState.window:setFrame(f)
+        moveState.window:setFrame(f)
         hs.window.animationDuration = prev
-        showDragBorder(f)
+        showMoveBorder(f)
     end)
 end
 
-local function clearDragState(dragState)
-    dragState.mode = "idle"
-    dragState.startedAs = "none"
-    dragState.resizeDirX = "none"
-    dragState.resizeDirY = "none"
-    dragState.window = nil
-    dragState.pendingDX = 0
-    dragState.pendingDY = 0
-    dragState.frame = nil
+local function clearMoveState(moveState)
+    moveState.mode = "idle"
+    moveState.startedAs = "none"
+    moveState.resizeDirX = "none"
+    moveState.resizeDirY = "none"
+    moveState.window = nil
+    moveState.pendingDX = 0
+    moveState.pendingDY = 0
+    moveState.frame = nil
     stopResizeTimer()
-    hideDragBorder()
+    hideMoveBorder()
 end
 
 local function createMouseMoveHandler()
     return hs.eventtap.new({hs.eventtap.event.types.mouseMoved}, function(event)
         -- Track callback time for zombie detection
-        _G.windowDrag.lastCallbackTime = hs.timer.secondsSinceEpoch()
+        _G.windowMove.lastCallbackTime = hs.timer.secondsSinceEpoch()
 
         local flags = event:getFlags()
         local fnOnly = flags.fn and not (flags.shift or flags.cmd or flags.alt or flags.ctrl)
         local fnShift = flags.fn and flags.shift and not (flags.cmd or flags.alt or flags.ctrl)
-        local dragState = _G.windowDrag.dragState
+        local moveState = _G.windowMove.moveState
 
         -- Modifier changed from what started the current operation → end it
-        if dragState.mode ~= "idle" then
-            local mismatch = (dragState.startedAs == "fnOnly" and not fnOnly)
-                          or (dragState.startedAs == "fnShift" and not fnShift)
+        if moveState.mode ~= "idle" then
+            local mismatch = (moveState.startedAs == "fnOnly" and not fnOnly)
+                          or (moveState.startedAs == "fnShift" and not fnShift)
             if mismatch then
-                clearDragState(dragState)
+                clearMoveState(moveState)
             end
         end
 
-        if dragState.mode == "idle" then
+        if moveState.mode == "idle" then
             if fnShift or fnOnly then
                 -- Start a new operation
                 local win = getWindowUnderMouse()
@@ -169,43 +169,43 @@ local function createMouseMoveHandler()
                         local dirX, dirY = computeResizeSection(win, mousePos)
                         if dirX == "none" and dirY == "none" then
                             -- Center of window: move instead
-                            dragState.mode = "move"
+                            moveState.mode = "move"
                         else
-                            dragState.mode = "resize"
-                            dragState.resizeDirX = dirX
-                            dragState.resizeDirY = dirY
-                            dragState.frame = win:frame()
+                            moveState.mode = "resize"
+                            moveState.resizeDirX = dirX
+                            moveState.resizeDirY = dirY
+                            moveState.frame = win:frame()
                             startResizeTimer()
                         end
-                        dragState.startedAs = "fnShift"
+                        moveState.startedAs = "fnShift"
                     else
-                        dragState.mode = "move"
-                        dragState.startedAs = "fnOnly"
+                        moveState.mode = "move"
+                        moveState.startedAs = "fnOnly"
                     end
-                    dragState.window = win
+                    moveState.window = win
                     win:raise()
-                    showDragBorder(win:frame(), win)
+                    showMoveBorder(win:frame(), win)
                     local frame = win:frame()
-                    dragState.windowStartX = frame.x
-                    dragState.windowStartY = frame.y
-                    dragState.mouseStartX = mousePos.x
-                    dragState.mouseStartY = mousePos.y
+                    moveState.windowStartX = frame.x
+                    moveState.windowStartY = frame.y
+                    moveState.mouseStartX = mousePos.x
+                    moveState.mouseStartY = mousePos.y
                 end
             end
-        elseif dragState.mode == "move" then
-            if dragState.window and dragState.window:isVisible() then
+        elseif moveState.mode == "move" then
+            if moveState.window and moveState.window:isVisible() then
                 local dx = event:getProperty(hs.eventtap.event.properties.mouseEventDeltaX)
                 local dy = event:getProperty(hs.eventtap.event.properties.mouseEventDeltaY)
-                local frame = dragState.window:frame()
-                dragState.window:setTopLeft({x = frame.x + dx, y = frame.y + dy})
-                showDragBorder(dragState.window:frame())
+                local frame = moveState.window:frame()
+                moveState.window:setTopLeft({x = frame.x + dx, y = frame.y + dy})
+                showMoveBorder(moveState.window:frame())
             end
-        elseif dragState.mode == "resize" then
+        elseif moveState.mode == "resize" then
             -- Just accumulate deltas; the resize timer applies them
             local dx = event:getProperty(hs.eventtap.event.properties.mouseEventDeltaX)
             local dy = event:getProperty(hs.eventtap.event.properties.mouseEventDeltaY)
-            dragState.pendingDX = dragState.pendingDX + dx
-            dragState.pendingDY = dragState.pendingDY + dy
+            moveState.pendingDX = moveState.pendingDX + dx
+            moveState.pendingDY = moveState.pendingDY + dy
         end
 
         return false  -- Don't consume the event
@@ -215,18 +215,18 @@ end
 local function createFlagsHandler()
     return hs.eventtap.new({hs.eventtap.event.types.flagsChanged}, function(event)
         -- Track callback time for zombie detection
-        _G.windowDrag.lastCallbackTime = hs.timer.secondsSinceEpoch()
+        _G.windowMove.lastCallbackTime = hs.timer.secondsSinceEpoch()
 
         local flags = event:getFlags()
         local fnOnly = flags.fn and not (flags.shift or flags.cmd or flags.alt or flags.ctrl)
         local fnShift = flags.fn and flags.shift and not (flags.cmd or flags.alt or flags.ctrl)
-        local dragState = _G.windowDrag.dragState
+        local moveState = _G.windowMove.moveState
 
-        if dragState.mode ~= "idle" then
-            local mismatch = (dragState.startedAs == "fnOnly" and not fnOnly)
-                          or (dragState.startedAs == "fnShift" and not fnShift)
+        if moveState.mode ~= "idle" then
+            local mismatch = (moveState.startedAs == "fnOnly" and not fnOnly)
+                          or (moveState.startedAs == "fnShift" and not fnShift)
             if mismatch then
-                clearDragState(dragState)
+                clearMoveState(moveState)
             end
         end
 
@@ -236,25 +236,25 @@ end
 
 local function startEventTaps()
     -- Stop existing handlers if any
-    if _G.windowDrag.mouseMoveHandler then
-        _G.windowDrag.mouseMoveHandler:stop()
+    if _G.windowMove.mouseMoveHandler then
+        _G.windowMove.mouseMoveHandler:stop()
     end
-    if _G.windowDrag.flagsHandler then
-        _G.windowDrag.flagsHandler:stop()
+    if _G.windowMove.flagsHandler then
+        _G.windowMove.flagsHandler:stop()
     end
 
     -- Create and start new handlers
-    _G.windowDrag.mouseMoveHandler = createMouseMoveHandler()
-    _G.windowDrag.flagsHandler = createFlagsHandler()
+    _G.windowMove.mouseMoveHandler = createMouseMoveHandler()
+    _G.windowMove.flagsHandler = createFlagsHandler()
 
-    _G.windowDrag.mouseMoveHandler:start()
-    _G.windowDrag.flagsHandler:start()
+    _G.windowMove.mouseMoveHandler:start()
+    _G.windowMove.flagsHandler:start()
 
     -- Reset callback time
-    _G.windowDrag.lastCallbackTime = hs.timer.secondsSinceEpoch()
+    _G.windowMove.lastCallbackTime = hs.timer.secondsSinceEpoch()
 end
 
--- Initialize and start the mouse drag functionality
+-- Initialize and start the mouse move functionality
 function M.init(opts)
     opts = opts or {}
     createBorderCanvas = opts.createBorderCanvas
@@ -265,20 +265,20 @@ function M.init(opts)
     startEventTaps()
 
     -- Stop existing watchdog if reloading
-    if _G.windowDrag.watchdog then
-        _G.windowDrag.watchdog:stop()
+    if _G.windowMove.watchdog then
+        _G.windowMove.watchdog:stop()
     end
 
     -- Enhanced watchdog: detect both disabled eventtaps AND zombie state
-    _G.windowDrag.watchdog = hs.timer.new(3, function()
-        local handler = _G.windowDrag.mouseMoveHandler
+    _G.windowMove.watchdog = hs.timer.new(3, function()
+        local handler = _G.windowMove.mouseMoveHandler
         if not handler then
             startEventTaps()
             return
         end
 
         local enabled = handler:isEnabled()
-        local timeSinceCallback = hs.timer.secondsSinceEpoch() - _G.windowDrag.lastCallbackTime
+        local timeSinceCallback = hs.timer.secondsSinceEpoch() - _G.windowMove.lastCallbackTime
 
         -- Restart if:
         -- 1. Handler reports disabled, OR
@@ -288,7 +288,7 @@ function M.init(opts)
             startEventTaps()
         end
     end)
-    _G.windowDrag.watchdog:start()
+    _G.windowMove.watchdog:start()
 end
 
 return M

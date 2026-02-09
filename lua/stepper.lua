@@ -2,8 +2,9 @@ hs.loadSpoon("WinWin")
 
 -- Load modules
 local scriptPath = debug.getinfo(1, "S").source:match("@(.*/)")
+local projectRoot = scriptPath .. "../"
 local focus = dofile(scriptPath .. "focus.lua")
-local mousedrag = dofile(scriptPath .. "mousedrag.lua")
+local mousemove = dofile(scriptPath .. "mousemove.lua")
 local screenswitch = dofile(scriptPath .. "screenswitch.lua")
 bear_hud = dofile(scriptPath .. "bear-hud.lua")
 
@@ -65,6 +66,12 @@ local compactWindows = {}
 
 -- Track shrunk windows for toggle behavior: {winID = {width = originalW, height = originalH}}
 local shrunkWindows = {}
+
+-- Move-to-display undo: winID -> {frame, screenID, position, timestamp}
+-- Stores original screen + frame before a cross-screen move.
+-- Pressing the same combo again within 1 hour restores the window.
+local displayUndo = {}
+local DISPLAY_UNDO_TTL = 3600  -- seconds
 
 -- Forward declaration for edge highlight (defined later with other visual feedback)
 local flashEdgeHighlight
@@ -242,18 +249,11 @@ local function toggleShrink(dir)
         shrunkWindows[winID].width = nil
         shrunkWindows[winID].x = nil
       else
-        -- Save current width and shrink
+        -- Save current width and shrink to minimum in one shot
         shrunkWindows[winID].width = frame.w
         shrunkWindows[winID].x = frame.x
-        local lastWidth = frame.w
-        for i = 1, 30 do
-          stepResize("left")
-          local currentWidth = win:frame().w
-          if currentWidth == lastWidth or currentWidth <= minSize.w then
-            break
-          end
-          lastWidth = currentWidth
-        end
+        local targetW = math.max(minSize.w, 1)
+        win:setFrame({x = frame.x, y = frame.y, w = targetW, h = frame.h})
       end
     elseif dir == "up" then
       -- Toggle height shrink
@@ -265,18 +265,11 @@ local function toggleShrink(dir)
         shrunkWindows[winID].height = nil
         shrunkWindows[winID].y = nil
       else
-        -- Save current height and shrink
+        -- Save current height and shrink to minimum in one shot
         shrunkWindows[winID].height = frame.h
         shrunkWindows[winID].y = frame.y
-        local lastHeight = frame.h
-        for i = 1, 30 do
-          stepResize("up")
-          local currentHeight = win:frame().h
-          if currentHeight == lastHeight or currentHeight <= minSize.h then
-            break
-          end
-          lastHeight = currentHeight
-        end
+        local targetH = math.max(minSize.h, 1)
+        win:setFrame({x = frame.x, y = frame.y, w = frame.w, h = targetH})
       end
     end
 
@@ -630,7 +623,7 @@ flashEdgeHighlight = function(screen, dir)
   end
 
   local thick = 12
-  local color = {red = 0.4, green = 0.7, blue = 1.0, alpha = 0.9}
+  local color = {red = 0.3, green = 0.8, blue = 0.4, alpha = 0.9}
 
   -- Normalize to table of directions
   local dirs = type(dir) == "table" and dir or {dir}
@@ -739,7 +732,37 @@ bindWithRepeat({"option", "cmd"}, "pageup", function() focus.focusScreen("up") e
 bindWithRepeat({"option", "cmd"}, "pagedown", function() focus.focusScreen("down") end)
 
 -- Move window to specific display (ctrl+option + arrows/return)
+-- Pressing the same combo again within 1 hour undoes the move.
 local function moveToDisplay(position)
+  local win = hs.window.focusedWindow()
+  if not win then return end
+  local winID = win:id()
+
+  -- Check for undo: same combo pressed again within TTL
+  local undo = displayUndo[winID]
+  if undo and undo.position == position
+     and (hs.timer.secondsSinceEpoch() - undo.timestamp) < DISPLAY_UNDO_TTL then
+    displayUndo[winID] = nil
+    setupWindowOperation(true)
+    instant(function() win:setFrame(undo.frame) end)
+    focus.flashFocusHighlight(win, nil)
+    return
+  end
+
+  -- Check if move is possible (target screen exists and differs from current)
+  local map = screenswitch.buildScreenMap()
+  local targetScreen = map[position]
+  if not targetScreen then return end
+  if win:screen():id() == targetScreen:id() then return end
+
+  -- Store undo state before moving
+  displayUndo[winID] = {
+    frame = win:frame(),
+    position = position,
+    timestamp = hs.timer.secondsSinceEpoch(),
+  }
+
+  -- Perform the move
   screenswitch.moveToScreen(position, setupWindowOperation, instant, focus.flashFocusHighlight)
 end
 hs.hotkey.bind({"ctrl", "alt"}, "down", function() moveToDisplay("bottom") end)
@@ -765,12 +788,12 @@ hs.hotkey.bind({"cmd"}, "forwarddelete", function()
   end
 end)
 
--- Initialize mouse drag module (inject shared border canvas API from focus)
-mousedrag.init({
+-- Initialize mouse move module (inject shared border canvas API from focus)
+mousemove.init({
   createBorderCanvas = focus.createBorderCanvas,
   updateBorderCanvas = focus.updateBorderCanvas,
   deleteBorderCanvas = focus.deleteBorderCanvas,
 })
 
 -- Initialize Bear HUD (note hotkeys + caret position persistence)
-bear_hud.init(scriptPath, focus)
+bear_hud.init(projectRoot, focus)
