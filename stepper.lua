@@ -4,6 +4,7 @@ hs.loadSpoon("WinWin")
 local scriptPath = debug.getinfo(1, "S").source:match("@(.*/)")
 local focus = dofile(scriptPath .. "focus.lua")
 local mousedrag = dofile(scriptPath .. "mousedrag.lua")
+local screenswitch = dofile(scriptPath .. "screenswitch.lua")
 bear_hud = dofile(scriptPath .. "bear-hud.lua")
 
 -- Clean up any orphaned focus highlights from previous session
@@ -736,6 +737,16 @@ bindWithRepeat({"option", "cmd"}, "home", function() focus.focusScreen("left") e
 bindWithRepeat({"option", "cmd"}, "end", function() focus.focusScreen("right") end)
 bindWithRepeat({"option", "cmd"}, "pageup", function() focus.focusScreen("up") end)
 bindWithRepeat({"option", "cmd"}, "pagedown", function() focus.focusScreen("down") end)
+
+-- Move window to specific display (ctrl+option + arrows/return)
+local function moveToDisplay(position)
+  screenswitch.moveToScreen(position, setupWindowOperation, instant, focus.flashFocusHighlight)
+end
+hs.hotkey.bind({"ctrl", "alt"}, "down", function() moveToDisplay("bottom") end)
+hs.hotkey.bind({"ctrl", "alt"}, "up", function() moveToDisplay("top") end)
+hs.hotkey.bind({"ctrl", "alt"}, "left", function() moveToDisplay("left") end)
+hs.hotkey.bind({"ctrl", "alt"}, "right", function() moveToDisplay("right") end)
+hs.hotkey.bind({"ctrl", "alt"}, "return", function() moveToDisplay("center") end)
 
 -- Compact/expand toggles (currently unassigned, functions still available)
 -- toggleCompact, toggleMaxHeight, toggleMaxWidth, toggleFullScreen

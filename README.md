@@ -85,6 +85,16 @@ Jump to an adjacent screen, focusing the window closest to where you came from:
 - **down**: go to lower screen, focus window with topmost edge
 - **Skips hidden windows**: Windows fully covered by other windows are excluded
 
+### Move to Display (ctrl+option + arrows/return)
+Move the focused window directly to a specific display:
+- **ctrl+option+down**: Bottom center (MacBook built-in)
+- **ctrl+option+up**: Top center
+- **ctrl+option+left**: Left
+- **ctrl+option+right**: Right
+- **ctrl+option+return**: Middle center
+
+These are direct arrow keys (no fn needed). The window's offset from the screen origin is preserved. If the window would extend beyond the target screen, it's clamped to stay fully visible. If too large, it shrinks to fit — the original dimensions are remembered and automatically restored when moving to a screen where they fit.
+
 ### Center Toggle (fn + shift + option + up)
 Progressive centering:
 1. First press: center vertically
