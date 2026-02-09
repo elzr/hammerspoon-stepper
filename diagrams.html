@@ -679,39 +679,41 @@
   <div class="card">
     <h3>Bear Note Lifecycle</h3>
     <div class="seq">
-      <!-- Closed: no Bear note visible, just other app windows -->
+      <!-- Closed: same gray window, cursor visible, no Bear note -->
       <div class="state">
         <div class="ms">
-          <div class="wg" style="left:12%;top:12%;width:42%;height:52%"></div>
-          <div class="wg" style="left:42%;top:28%;width:42%;height:48%"></div>
+          <div class="wg" style="left:25%;top:8%;width:48%;height:52%"></div>
+          <div class="cur" style="left:60%;top:56%"></div>
         </div>
         <span class="label">Closed</span>
       </div>
       <div class="arrow"><span class="kc">◆ key</span>→</div>
-      <!-- Open behind: Bear note exists but behind other windows, caret restored -->
+      <!-- Open behind: Bear appears but behind gray window -->
       <div class="state">
         <div class="ms">
-          <div class="w" style="left:6%;top:22%;width:48%;height:60%"></div>
-          <div class="wg" style="left:28%;top:8%;width:48%;height:52%"></div>
+          <div class="w" style="left:5%;top:22%;width:48%;height:62%"></div>
+          <div class="wg" style="left:25%;top:8%;width:48%;height:52%"></div>
+          <div class="cur" style="left:60%;top:56%"></div>
         </div>
         <span class="label">Open behind</span>
       </div>
       <div class="arrow"><span class="kc">◆ key</span>→</div>
-      <!-- Raised: Bear note now on top of other windows -->
+      <!-- Raised: z-order flipped, Bear on top -->
       <div class="state">
         <div class="ms">
-          <div class="wg" style="left:28%;top:8%;width:48%;height:52%"></div>
-          <div class="w" style="left:6%;top:22%;width:48%;height:60%"></div>
+          <div class="wg" style="left:25%;top:8%;width:48%;height:52%"></div>
+          <div class="w" style="left:5%;top:22%;width:48%;height:62%"></div>
+          <div class="cur" style="left:60%;top:56%"></div>
         </div>
         <span class="label">Raised</span>
       </div>
       <div class="arrow"><span class="kc">◆ key</span>→</div>
-      <!-- Summoned: Bear note moved to cursor position -->
+      <!-- Summoned: Bear jumps to cursor, gray window stays put -->
       <div class="state">
         <div class="ms">
-          <div class="wg" style="left:5%;top:8%;width:40%;height:48%"></div>
-          <div class="cur" style="left:52%;top:28%"></div>
-          <div class="w" style="left:48%;top:30%;width:46%;height:58%"></div>
+          <div class="wg" style="left:25%;top:8%;width:48%;height:52%"></div>
+          <div class="cur" style="left:60%;top:56%"></div>
+          <div class="w" style="left:46%;top:28%;width:48%;height:62%"></div>
         </div>
         <span class="label">At cursor</span>
       </div>
