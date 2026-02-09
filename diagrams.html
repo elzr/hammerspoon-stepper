@@ -59,6 +59,10 @@
 
   /* Shared blue key combo styling */
   .kc { color: var(--accent); font-weight: 500; }
+  /* Hotpink direction arrows */
+  .arr { color: hotpink; font-weight: 500; }
+  /* Green accent for edge-related items */
+  .edge-mod { border-color: rgba(77, 204, 102, 0.35) !important; background: rgba(77, 204, 102, 0.08) !important; }
 
   /* Cross/spatial layout (snap, resize-edge, display, focus, etc.) */
   .cross {
@@ -109,7 +113,7 @@
   .seq + .seq { margin-top: 0.75rem; }
   .seq .arrow {
     display: flex; flex-direction: column; align-items: center;
-    gap: 1px; font-size: 0.72rem; color: var(--muted);
+    gap: 1px; font-size: 0.72rem; color: hotpink;
   }
   .seq .arrow .kc { font-size: 0.72rem; }
   .seq .state {
@@ -229,13 +233,20 @@
     text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.35rem;
   }
   .ops-pill {
-    display: flex; align-items: center; gap: 0.35rem;
+    display: flex; align-items: center; gap: 0.3rem;
     background: var(--blue-bg); border: 1px solid var(--blue-border);
     border-radius: 5px; padding: 0.22rem 0.45rem;
     font-size: 0.72rem; margin-bottom: 3px;
   }
   .ops-pill:last-child { margin-bottom: 0; }
-  .ops-pill .kc { min-width: 1.6rem; }
+  .ops-pill .kc { min-width: 1.6rem; text-align: right; }
+  .ops-pill .arr { min-width: 1.2rem; text-align: center; font-size: 0.72rem; }
+  .ops-pill.no-fn {
+    border-style: dashed;
+    border-color: rgba(139, 148, 158, 0.35);
+    background: rgba(139, 148, 158, 0.06);
+  }
+  .ops-pill.no-fn .kc { color: var(--muted); }
 
   /* Multi-screen layout for cross-screen focus */
   .screens {
@@ -329,8 +340,8 @@
       <div class="esc-ops">
         <div class="esc-item"><span class="mod" style="color:var(--muted)">none</span><span class="name">Move</span></div>
         <div class="esc-item"><span class="mod kc">⇧</span><span class="name">Resize</span></div>
-        <div class="esc-item"><span class="mod kc">⌃</span><span class="name">Snap to Edge</span></div>
-        <div class="esc-item"><span class="mod kc">⌃⇧</span><span class="name">Resize to Edge</span></div>
+        <div class="esc-item edge-mod"><span class="mod kc">⌃</span><span class="name">Snap to Edge</span></div>
+        <div class="esc-item edge-mod"><span class="mod kc">⌃⇧</span><span class="name">Resize to Edge</span></div>
         <div class="esc-item"><span class="mod kc">⌥</span><span class="name">Shrink / Grow</span></div>
         <div class="esc-item"><span class="mod kc">⇧⌥</span><span class="name">Layout Toggles</span></div>
         <div class="esc-item"><span class="mod kc">⌘</span><span class="name">Focus Same</span></div>
@@ -345,21 +356,21 @@
     <div class="ops">
       <div class="ops-group">
         <div class="ops-group-hd">Position</div>
-        <div class="ops-pill"><span class="kc" style="color:var(--muted)">none</span> Step Move</div>
-        <div class="ops-pill"><span class="kc">⌃</span> Snap to Edge</div>
-        <div class="ops-pill"><span class="kc">⌃⌥</span> Move to Display</div>
+        <div class="ops-pill"><span class="kc">—</span> Step Move</div>
+        <div class="ops-pill edge-mod"><span class="kc">⌃</span> Snap to Edge</div>
+        <div class="ops-pill no-fn"><span class="kc">⌃⌥</span> Move to Display <span style="font-size:0.6rem;color:var(--muted);margin-left:auto">no fn</span></div>
       </div>
       <div class="ops-group">
         <div class="ops-group-hd">Size</div>
         <div class="ops-pill"><span class="kc">⇧</span> Step Resize</div>
-        <div class="ops-pill"><span class="kc">⌃⇧</span> Resize to Edge</div>
+        <div class="ops-pill edge-mod"><span class="kc">⌃⇧</span> Resize to Edge</div>
         <div class="ops-pill"><span class="kc">⌥</span> Shrink / Grow</div>
       </div>
       <div class="ops-group">
         <div class="ops-group-hd">Layout</div>
-        <div class="ops-pill"><span class="kc">⇧⌥ ←→</span> Half / Third</div>
-        <div class="ops-pill"><span class="kc">⇧⌥↑</span> Center</div>
-        <div class="ops-pill"><span class="kc">⇧⌥↓</span> Maximize</div>
+        <div class="ops-pill"><span class="kc">⇧⌥</span><span class="arr">←→</span> Half / Third</div>
+        <div class="ops-pill"><span class="kc">⇧⌥</span><span class="arr">↑</span> Center</div>
+        <div class="ops-pill"><span class="kc">⇧⌥</span><span class="arr">↓</span> Maximize</div>
       </div>
       <div class="ops-group">
         <div class="ops-group-hd">Focus</div>
@@ -487,18 +498,18 @@
     <div class="seq">
       <div class="state"><div class="ms"><div class="w" style="left:15%;top:15%;width:35%;height:65%"></div></div><span class="label">Normal</span></div>
       <div class="arrow"><span class="kc">⇧⌥←</span>→</div>
-      <div class="state"><div class="ms"><div class="w" style="left:2px;top:2px;bottom:2px;width:calc(50% - 3px)"></div></div><span class="label">Left Half</span></div>
+      <div class="state"><div class="ms"><div class="eg l"></div><div class="eg t"></div><div class="eg b"></div><div class="w" style="left:2px;top:2px;bottom:2px;width:calc(50% - 3px)"></div></div><span class="label">Left Half</span></div>
       <div class="arrow"><span class="kc">⇧⌥←</span>→</div>
-      <div class="state"><div class="ms"><div class="w" style="left:2px;top:2px;bottom:2px;width:calc(33% - 3px)"></div></div><span class="label">Left Third</span></div>
+      <div class="state"><div class="ms"><div class="eg l"></div><div class="eg t"></div><div class="eg b"></div><div class="w" style="left:2px;top:2px;bottom:2px;width:calc(33% - 3px)"></div></div><span class="label">Left Third</span></div>
       <div class="arrow"><span class="kc">⇧⌥←</span>→</div>
       <div class="state"><span class="label" style="color:var(--accent)">back</span></div>
     </div>
     <div class="seq">
       <div class="state"><div class="ms"><div class="w" style="right:20%;top:15%;width:35%;height:65%"></div></div><span class="label">Normal</span></div>
       <div class="arrow"><span class="kc">⇧⌥→</span>→</div>
-      <div class="state"><div class="ms"><div class="w" style="right:2px;top:2px;bottom:2px;width:calc(50% - 3px)"></div></div><span class="label">Right Half</span></div>
+      <div class="state"><div class="ms"><div class="eg r"></div><div class="eg t"></div><div class="eg b"></div><div class="w" style="right:2px;top:2px;bottom:2px;width:calc(50% - 3px)"></div></div><span class="label">Right Half</span></div>
       <div class="arrow"><span class="kc">⇧⌥→</span>→</div>
-      <div class="state"><div class="ms"><div class="w" style="right:2px;top:2px;bottom:2px;width:calc(33% - 3px)"></div></div><span class="label">Right Third</span></div>
+      <div class="state"><div class="ms"><div class="eg r"></div><div class="eg t"></div><div class="eg b"></div><div class="w" style="right:2px;top:2px;bottom:2px;width:calc(33% - 3px)"></div></div><span class="label">Right Third</span></div>
       <div class="arrow"><span class="kc">⇧⌥→</span>→</div>
       <div class="state"><span class="label" style="color:var(--accent)">back</span></div>
     </div>
@@ -524,7 +535,7 @@
     <div class="seq">
       <div class="state"><div class="ms"><div class="w" style="left:12%;top:15%;width:45%;height:55%"></div></div><span class="label">Normal</span></div>
       <div class="arrow"><span class="kc">⇧⌥↓</span>→</div>
-      <div class="state"><div class="ms"><div class="w" style="left:2px;top:2px;right:2px;bottom:2px"></div></div><span class="label">Maximized</span></div>
+      <div class="state"><div class="ms"><div class="eg t"></div><div class="eg b"></div><div class="eg l"></div><div class="eg r"></div><div class="w" style="left:2px;top:2px;right:2px;bottom:2px"></div></div><span class="label">Maximized</span></div>
       <div class="arrow"><span class="kc">⇧⌥↓</span>→</div>
       <div class="state"><span class="label" style="color:var(--accent)">back</span></div>
     </div>
@@ -590,33 +601,33 @@
       <div class="c top">
         <div class="screens stacked">
           <div class="scr target">
-            <div class="tw tgt" style="left:35%;top:20%;width:30%;height:35%"></div>
-            <div class="tw dim" style="left:5%;top:55%;width:25%;height:30%"></div>
+            <div class="tw tgt" style="left:30%;top:45%;width:30%;height:35%"></div>
+            <div class="tw dim" style="left:5%;top:8%;width:25%;height:28%"></div>
           </div>
           <div class="scr current">
-            <div class="tw src" style="left:30%;top:45%;width:30%;height:35%"></div>
+            <div class="tw src" style="left:28%;top:10%;width:30%;height:35%"></div>
           </div>
         </div>
-        <span class="kc">⌥⌘↑</span><span class="label">Upper screen</span>
+        <span class="kc">⌥⌘↑</span><span class="label">Nearest by Y</span>
       </div>
       <div class="c left">
         <div class="screens">
           <div class="scr target">
-            <div class="tw tgt" style="left:50%;top:25%;width:30%;height:35%"></div>
-            <div class="tw dim" style="left:10%;top:55%;width:25%;height:30%"></div>
+            <div class="tw tgt" style="left:40%;top:25%;width:30%;height:35%"></div>
+            <div class="tw dim" style="left:8%;top:55%;width:25%;height:28%"></div>
           </div>
           <div class="scr current">
             <div class="tw src" style="left:15%;top:25%;width:30%;height:35%"></div>
           </div>
         </div>
-        <span class="kc">⌥⌘←</span><span class="label">Left screen</span>
+        <span class="kc">⌥⌘←</span><span class="label">Nearest by Y</span>
       </div>
       <div class="c center center-neutral">
         <div class="screens">
           <div class="scr current" style="width:42px;height:28px;border-style:solid">
-            <div class="tw src" style="left:30%;top:25%;width:30%;height:35%"></div>
-            <div class="tw dim" style="left:5%;top:8%;width:22%;height:25%"></div>
-            <div class="tw dim" style="right:5%;top:55%;width:25%;height:30%"></div>
+            <div class="tw src" style="left:28%;top:25%;width:30%;height:35%"></div>
+            <div class="tw dim" style="left:5%;top:5%;width:20%;height:22%"></div>
+            <div class="tw dim" style="right:5%;top:58%;width:22%;height:25%"></div>
           </div>
         </div>
         <span class="label">display</span>
@@ -624,26 +635,26 @@
       <div class="c right">
         <div class="screens">
           <div class="scr current">
-            <div class="tw src" style="left:55%;top:25%;width:30%;height:35%"></div>
+            <div class="tw src" style="left:50%;top:25%;width:30%;height:35%"></div>
           </div>
           <div class="scr target">
-            <div class="tw tgt" style="left:10%;top:25%;width:30%;height:35%"></div>
-            <div class="tw dim" style="right:8%;top:55%;width:25%;height:30%"></div>
+            <div class="tw tgt" style="left:15%;top:25%;width:30%;height:35%"></div>
+            <div class="tw dim" style="right:5%;top:55%;width:22%;height:28%"></div>
           </div>
         </div>
-        <span class="kc">⌥⌘→</span><span class="label">Right screen</span>
+        <span class="kc">⌥⌘→</span><span class="label">Nearest by Y</span>
       </div>
       <div class="c bottom">
         <div class="screens stacked">
           <div class="scr current">
-            <div class="tw src" style="left:30%;top:15%;width:30%;height:35%"></div>
+            <div class="tw src" style="left:30%;top:45%;width:30%;height:35%"></div>
           </div>
           <div class="scr target">
-            <div class="tw tgt" style="left:35%;top:30%;width:30%;height:35%"></div>
-            <div class="tw dim" style="right:8%;top:5%;width:25%;height:30%"></div>
+            <div class="tw tgt" style="left:35%;top:15%;width:30%;height:35%"></div>
+            <div class="tw dim" style="right:5%;top:55%;width:22%;height:28%"></div>
           </div>
         </div>
-        <span class="kc">⌥⌘↓</span><span class="label">Lower screen</span>
+        <span class="kc">⌥⌘↓</span><span class="label">Nearest by Y</span>
       </div>
     </div>
     <div class="undo-note">focuses nearest window to source position</div>
@@ -728,7 +739,7 @@
         <span class="label">At cursor</span>
       </div>
       <div class="arrow"><span class="kc">◆ key</span>→</div>
-      <div class="state"><span class="label" style="color:var(--accent)">closed</span></div>
+      <div class="state"><span class="label">closed</span></div>
     </div>
   </div>
 
