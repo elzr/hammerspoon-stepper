@@ -241,9 +241,39 @@
     background: var(--blue-fill); border-color: var(--blue-border);
   }
   .scr.current { border-style: dashed; }
-  .scr .dot {
-    position: absolute; width: 4px; height: 4px;
-    background: var(--accent); border-radius: 1px;
+  /* Shadow band (perpendicular projection used to constrain focus) */
+  .sb {
+    position: absolute; background: rgba(88, 166, 255, 0.06);
+  }
+  .sb.h { /* horizontal: left/right nav */
+    left: 0; right: 0;
+    border-top: 1px dashed rgba(88, 166, 255, 0.12);
+    border-bottom: 1px dashed rgba(88, 166, 255, 0.12);
+  }
+  .sb.v { /* vertical: up/down nav */
+    top: 0; bottom: 0;
+    border-left: 1px dashed rgba(88, 166, 255, 0.12);
+    border-right: 1px dashed rgba(88, 166, 255, 0.12);
+  }
+  /* Faint window outside the shadow (deprioritized) */
+  .wf {
+    position: absolute;
+    border: 1px solid rgba(139, 148, 158, 0.18);
+    border-radius: 1px;
+  }
+  /* Tiny windows inside screen outlines (cross-screen focus) */
+  .scr .tw {
+    position: absolute; border-radius: 1px;
+  }
+  .scr .tw.src {
+    border: 1px dashed rgba(139, 148, 158, 0.6);
+  }
+  .scr .tw.tgt {
+    background: rgba(88, 166, 255, 0.6);
+    border: 1px solid rgba(88, 166, 255, 0.8);
+  }
+  .scr .tw.dim {
+    border: 1px solid rgba(139, 148, 158, 0.25);
   }
 </style>
 </head>
@@ -474,86 +504,118 @@
     </div>
   </div>
 
-  <!-- Focus Same Screen (visual: windows within one screen) -->
+  <!-- Focus Same Screen (visual: shadow-constrained within one screen) -->
   <div class="card">
     <h3>Focus — Same Screen</h3>
     <div class="cross vis">
       <div class="c top">
         <div class="ms">
-          <div class="w" style="left:28%;top:5%;width:30%;height:30%"></div>
-          <div class="wo" style="left:22%;top:50%;width:30%;height:30%"></div>
+          <div class="sb v" style="left:25%;width:32%"></div>
+          <div class="w" style="left:27%;top:5%;width:28%;height:26%"></div>
+          <div class="wo" style="left:25%;top:58%;width:32%;height:28%"></div>
+          <div class="wf" style="right:6%;top:30%;width:20%;height:22%"></div>
         </div>
-        <span class="kc">⌘↑</span><span class="label">Nearest above</span>
+        <span class="kc">⌘↑</span><span class="label">In shadow</span>
       </div>
       <div class="c left">
         <div class="ms">
-          <div class="w" style="left:5%;top:20%;width:28%;height:35%"></div>
-          <div class="wo" style="left:52%;top:28%;width:30%;height:35%"></div>
+          <div class="sb h" style="top:25%;height:38%"></div>
+          <div class="w" style="left:5%;top:28%;width:24%;height:32%"></div>
+          <div class="wo" style="right:6%;top:25%;width:26%;height:38%"></div>
+          <div class="wf" style="left:38%;top:72%;width:20%;height:18%"></div>
         </div>
-        <span class="kc">⌘←</span><span class="label">Nearest left</span>
+        <span class="kc">⌘←</span><span class="label">In shadow</span>
       </div>
       <div class="c center center-neutral">
         <div class="ms">
-          <div class="wo" style="left:8%;top:8%;width:26%;height:32%"></div>
-          <div class="wo" style="left:55%;top:12%;width:30%;height:28%"></div>
-          <div class="wo" style="left:18%;top:55%;width:32%;height:30%"></div>
-          <div class="wo" style="left:60%;top:52%;width:28%;height:34%"></div>
+          <div class="wo" style="left:6%;top:6%;width:28%;height:30%"></div>
+          <div class="wo" style="left:56%;top:10%;width:30%;height:26%"></div>
+          <div class="wo" style="left:14%;top:52%;width:30%;height:32%"></div>
+          <div class="wo" style="left:58%;top:50%;width:28%;height:34%"></div>
         </div>
         <span class="label">windows</span>
       </div>
       <div class="c right">
         <div class="ms">
-          <div class="wo" style="left:8%;top:28%;width:30%;height:35%"></div>
-          <div class="w" style="left:58%;top:20%;width:30%;height:35%"></div>
+          <div class="sb h" style="top:22%;height:38%"></div>
+          <div class="wo" style="left:6%;top:22%;width:26%;height:38%"></div>
+          <div class="w" style="right:5%;top:25%;width:24%;height:32%"></div>
+          <div class="wf" style="left:35%;top:5%;width:20%;height:18%"></div>
         </div>
-        <span class="kc">⌘→</span><span class="label">Nearest right</span>
+        <span class="kc">⌘→</span><span class="label">In shadow</span>
       </div>
       <div class="c bottom">
         <div class="ms">
-          <div class="wo" style="left:22%;top:10%;width:30%;height:30%"></div>
-          <div class="w" style="left:28%;top:58%;width:30%;height:30%"></div>
+          <div class="sb v" style="left:28%;width:30%"></div>
+          <div class="wo" style="left:28%;top:6%;width:30%;height:26%"></div>
+          <div class="w" style="left:30%;top:62%;width:26%;height:26%"></div>
+          <div class="wf" style="left:5%;top:40%;width:18%;height:22%"></div>
         </div>
-        <span class="kc">⌘↓</span><span class="label">Nearest below</span>
+        <span class="kc">⌘↓</span><span class="label">In shadow</span>
       </div>
     </div>
-    <div class="undo-note">wraps around screen edges</div>
+    <div class="undo-note">shadow = perpendicular overlap · wraps around</div>
   </div>
 
-  <!-- Focus Other Screen (visual: multiple displays) -->
+  <!-- Focus Other Screen (visual: nearest window on adjacent display) -->
   <div class="card">
     <h3>Focus — Other Screen</h3>
     <div class="cross vis">
       <div class="c top">
         <div class="screens stacked">
-          <div class="scr target"></div>
-          <div class="scr current"></div>
+          <div class="scr target">
+            <div class="tw tgt" style="left:35%;top:20%;width:30%;height:35%"></div>
+            <div class="tw dim" style="left:5%;top:55%;width:25%;height:30%"></div>
+          </div>
+          <div class="scr current">
+            <div class="tw src" style="left:30%;top:45%;width:30%;height:35%"></div>
+          </div>
         </div>
         <span class="kc">⌥⌘↑</span><span class="label">Upper screen</span>
       </div>
       <div class="c left">
         <div class="screens">
-          <div class="scr target"></div>
-          <div class="scr current"></div>
+          <div class="scr target">
+            <div class="tw tgt" style="left:50%;top:25%;width:30%;height:35%"></div>
+            <div class="tw dim" style="left:10%;top:55%;width:25%;height:30%"></div>
+          </div>
+          <div class="scr current">
+            <div class="tw src" style="left:15%;top:25%;width:30%;height:35%"></div>
+          </div>
         </div>
         <span class="kc">⌥⌘←</span><span class="label">Left screen</span>
       </div>
       <div class="c center center-neutral">
         <div class="screens">
-          <div class="scr current" style="width:42px;height:28px;border-style:solid"></div>
+          <div class="scr current" style="width:42px;height:28px;border-style:solid">
+            <div class="tw src" style="left:30%;top:25%;width:30%;height:35%"></div>
+            <div class="tw dim" style="left:5%;top:8%;width:22%;height:25%"></div>
+            <div class="tw dim" style="right:5%;top:55%;width:25%;height:30%"></div>
+          </div>
         </div>
         <span class="label">display</span>
       </div>
       <div class="c right">
         <div class="screens">
-          <div class="scr current"></div>
-          <div class="scr target"></div>
+          <div class="scr current">
+            <div class="tw src" style="left:55%;top:25%;width:30%;height:35%"></div>
+          </div>
+          <div class="scr target">
+            <div class="tw tgt" style="left:10%;top:25%;width:30%;height:35%"></div>
+            <div class="tw dim" style="right:8%;top:55%;width:25%;height:30%"></div>
+          </div>
         </div>
         <span class="kc">⌥⌘→</span><span class="label">Right screen</span>
       </div>
       <div class="c bottom">
         <div class="screens stacked">
-          <div class="scr current"></div>
-          <div class="scr target"></div>
+          <div class="scr current">
+            <div class="tw src" style="left:30%;top:15%;width:30%;height:35%"></div>
+          </div>
+          <div class="scr target">
+            <div class="tw tgt" style="left:35%;top:30%;width:30%;height:35%"></div>
+            <div class="tw dim" style="right:8%;top:5%;width:25%;height:30%"></div>
+          </div>
         </div>
         <span class="kc">⌥⌘↓</span><span class="label">Lower screen</span>
       </div>
