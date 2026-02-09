@@ -765,8 +765,12 @@ hs.hotkey.bind({"cmd"}, "forwarddelete", function()
   end
 end)
 
--- Initialize mouse drag module
-mousedrag.init()
+-- Initialize mouse drag module (inject shared border canvas API from focus)
+mousedrag.init({
+  createBorderCanvas = focus.createBorderCanvas,
+  updateBorderCanvas = focus.updateBorderCanvas,
+  deleteBorderCanvas = focus.deleteBorderCanvas,
+})
 
 -- Initialize Bear HUD (note hotkeys + caret position persistence)
 bear_hud.init(scriptPath, focus)

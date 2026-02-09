@@ -10,6 +10,29 @@
 
 local M = {}
 
+-- Border canvas functions (injected via init)
+local createBorderCanvas = nil
+local updateBorderCanvas = nil
+local deleteBorderCanvas = nil
+
+-- Persistent drag border highlight
+local dragBorder = nil
+
+local function showDragBorder(frame, win)
+    if not dragBorder then
+        dragBorder = createBorderCanvas(frame, nil, win)
+    else
+        updateBorderCanvas(dragBorder, frame)
+    end
+end
+
+local function hideDragBorder()
+    if dragBorder then
+        deleteBorderCanvas(dragBorder)
+        dragBorder = nil
+    end
+end
+
 -- Global state to prevent garbage collection
 _G.windowDrag = _G.windowDrag or {}
 _G.windowDrag.dragState = {
@@ -100,6 +123,7 @@ local function startResizeTimer()
         hs.window.animationDuration = 0
         dragState.window:setFrame(f)
         hs.window.animationDuration = prev
+        showDragBorder(f)
     end)
 end
 
@@ -113,6 +137,7 @@ local function clearDragState(dragState)
     dragState.pendingDY = 0
     dragState.frame = nil
     stopResizeTimer()
+    hideDragBorder()
 end
 
 local function createMouseMoveHandler()
@@ -158,6 +183,8 @@ local function createMouseMoveHandler()
                         dragState.startedAs = "fnOnly"
                     end
                     dragState.window = win
+                    win:raise()
+                    showDragBorder(win:frame(), win)
                     local frame = win:frame()
                     dragState.windowStartX = frame.x
                     dragState.windowStartY = frame.y
@@ -171,6 +198,7 @@ local function createMouseMoveHandler()
                 local dy = event:getProperty(hs.eventtap.event.properties.mouseEventDeltaY)
                 local frame = dragState.window:frame()
                 dragState.window:setTopLeft({x = frame.x + dx, y = frame.y + dy})
+                showDragBorder(dragState.window:frame())
             end
         elseif dragState.mode == "resize" then
             -- Just accumulate deltas; the resize timer applies them
@@ -227,7 +255,12 @@ local function startEventTaps()
 end
 
 -- Initialize and start the mouse drag functionality
-function M.init()
+function M.init(opts)
+    opts = opts or {}
+    createBorderCanvas = opts.createBorderCanvas
+    updateBorderCanvas = opts.updateBorderCanvas
+    deleteBorderCanvas = opts.deleteBorderCanvas
+
     -- Start the eventtaps
     startEventTaps()
 

@@ -106,11 +106,211 @@ end
 -- Visual feedback
 -- =============================================================================
 
+-- Stores corner radius per canvas (hs.canvas doesn't support custom fields)
+local canvasRadii = {}
+
 -- Safely delete a canvas (no-op if already deleted or nil)
 local function safeDeleteCanvas(canvas)
   if canvas then
+    canvasRadii[canvas] = nil
     pcall(function() canvas:delete() end)
   end
+end
+
+-- =============================================================================
+-- Continuous corner path (matches macOS Tahoe window chrome)
+-- =============================================================================
+-- Apple uses 3 cubic bezier segments per corner instead of circular arcs.
+-- Constants from PaintCode's reverse-engineering of Apple's implementation.
+
+-- Multiples of corner radius r.  For the top-right corner (x = leftward from
+-- corner, y = downward), the three bezier segments are:
+--   Seg 1: (a,0) → (p,q)  c1=(b,0)   c2=(c,0)
+--   Seg 2: (p,q) → (q,p)  c1=(f,g)   c2=(g,f)
+--   Seg 3: (q,p) → (0,a)  c1=(0,c)   c2=(0,b)
+local CC = {
+  a = 1.52866483,   -- curve start/end distance from corner on each edge
+  b = 1.08849296,   -- control point near straight edge
+  c = 0.86840694,   -- control point farther from straight edge
+  p = 0.63149379,   -- junction point (major coord)
+  q = 0.07491139,   -- junction point (minor coord)
+  f = 0.37282383,   -- mid-curve control point (major)
+  g = 0.16905956,   -- mid-curve control point (minor)
+}
+
+-- Build continuous-corner path coordinates for hs.canvas segments element.
+-- w, h = inner dimensions of the border rect; r = corner radius.
+-- ox, oy = offset of the rect origin within the canvas.
+-- Returns a coordinates array (closed path, clockwise from top-left straight).
+local function continuousCornerCoords(w, h, r, ox, oy)
+  -- Clamp: if the curve extent (a*r) exceeds half the edge, scale down
+  local maxR = math.min(w, h) / (2 * CC.a)
+  if r > maxR then r = maxR end
+
+  local a, b, c = CC.a*r, CC.b*r, CC.c*r
+  local p, q    = CC.p*r, CC.q*r
+  local f, g    = CC.f*r, CC.g*r
+
+  -- Corner origins (inner rect corners)
+  local L, R, T, B = ox, ox + w, oy, oy + h
+
+  return {
+    -- Top edge (left to right)
+    {x = L + a, y = T},
+    {x = R - a, y = T},
+    -- Top-right corner (3 bezier segments)
+    {x = R - p, y = T + q, c1x = R - b, c1y = T,     c2x = R - c, c2y = T},
+    {x = R - q, y = T + p, c1x = R - f, c1y = T + g,  c2x = R - g, c2y = T + f},
+    {x = R,     y = T + a, c1x = R,     c1y = T + c,  c2x = R,     c2y = T + b},
+    -- Right edge (top to bottom)
+    {x = R, y = B - a},
+    -- Bottom-right corner
+    {x = R - q, y = B - p, c1x = R,     c1y = B - b,  c2x = R,     c2y = B - c},
+    {x = R - p, y = B - q, c1x = R - g, c1y = B - f,  c2x = R - f, c2y = B - g},
+    {x = R - a, y = B,     c1x = R - c, c1y = B,      c2x = R - b, c2y = B},
+    -- Bottom edge (right to left)
+    {x = L + a, y = B},
+    -- Bottom-left corner
+    {x = L + p, y = B - q, c1x = L + b, c1y = B,      c2x = L + c, c2y = B},
+    {x = L + q, y = B - p, c1x = L + f, c1y = B - g,  c2x = L + g, c2y = B - f},
+    {x = L,     y = B - a, c1x = L,     c1y = B - c,  c2x = L,     c2y = B - b},
+    -- Left edge (bottom to top)
+    {x = L, y = T + a},
+    -- Top-left corner
+    {x = L + q, y = T + p, c1x = L,     c1y = T + b,  c2x = L,     c2y = T + c},
+    {x = L + p, y = T + q, c1x = L + g, c1y = T + f,  c2x = L + f, c2y = T + g},
+    {x = L + a, y = T,     c1x = L + c, c1y = T,      c2x = L + b, c2y = T},
+  }
+end
+
+-- Emphasis line coordinates for a direction (thick line on one edge, inset by a*r).
+-- Returns coordinates array or nil.
+local function emphasisCoords(w, h, r, ox, oy, dir)
+  local ar = CC.a * r
+  -- Clamp same as continuousCornerCoords
+  local maxR = math.min(w, h) / (2 * CC.a)
+  if r > maxR then ar = CC.a * maxR end
+
+  if dir == "left" then
+    return {{x = ox, y = oy + ar}, {x = ox, y = oy + h - ar}}
+  elseif dir == "right" then
+    return {{x = ox + w, y = oy + ar}, {x = ox + w, y = oy + h - ar}}
+  elseif dir == "up" then
+    return {{x = ox + ar, y = oy}, {x = ox + w - ar, y = oy}}
+  elseif dir == "down" then
+    return {{x = ox + ar, y = oy + h}, {x = ox + w - ar, y = oy + h}}
+  end
+  return nil
+end
+
+-- =============================================================================
+-- Border canvas API (shared by focus highlight and mouse drag)
+-- =============================================================================
+
+local borderThin = 4
+local borderThick = 12
+local radiusToolbar = 22    -- native toolbar windows (Bear, Finder, Safari)
+local radiusNoToolbar = 8   -- plain titlebar windows (Kitty, Chrome, Electron)
+local borderColor = {red = 0.4, green = 0.7, blue = 1.0, alpha = 0.9}
+local borderPadding = borderThick / 2 + 2
+
+-- Per-app toolbar cache (toolbar presence is an app-level property, not per-window)
+local toolbarCache = {}
+
+-- Check if a window has a native macOS toolbar (AXToolbar in accessibility tree).
+-- Cached per bundle ID; wrapped in pcall to guard against AX hangs.
+local function hasNativeToolbar(win)
+  local app = win:application()
+  if not app then return false end
+  local bid = app:bundleID()
+  if not bid then return false end
+  if toolbarCache[bid] ~= nil then return toolbarCache[bid] end
+  local ok, result = pcall(function()
+    local ax = hs.axuielement.windowElement(win)
+    local children = ax:attributeValue("AXChildren") or {}
+    for _, child in ipairs(children) do
+      if child:attributeValue("AXRole") == "AXToolbar" then
+        return true
+      end
+    end
+    return false
+  end)
+  local has = ok and result or false
+  toolbarCache[bid] = has
+  return has
+end
+
+-- Creates a canvas with continuous-corner border around `frame`, shown immediately.
+-- `dir` (optional) adds a thick emphasis line on that edge ("left"/"right"/"up"/"down").
+-- `win` (optional) used to detect toolbar and pick matching corner radius.
+function M.createBorderCanvas(frame, dir, win)
+  local r = (win and hasNativeToolbar(win)) and radiusToolbar or radiusNoToolbar
+  local pad = borderPadding
+  local c = hs.canvas.new({
+    x = frame.x - pad, y = frame.y - pad,
+    w = frame.w + pad * 2, h = frame.h + pad * 2
+  })
+
+  -- Continuous-corner border path
+  c:appendElements({
+    type = "segments",
+    action = "stroke",
+    strokeColor = borderColor,
+    strokeWidth = borderThin,
+    closed = true,
+    coordinates = continuousCornerCoords(frame.w, frame.h, r, pad, pad),
+  })
+
+  -- Emphasis line
+  local emph = emphasisCoords(frame.w, frame.h, r, pad, pad, dir)
+  if emph then
+    c:appendElements({
+      type = "segments",
+      action = "stroke",
+      strokeColor = borderColor,
+      strokeWidth = borderThick,
+      strokeCapStyle = "round",
+      coordinates = emph,
+    })
+  end
+
+  c:show()
+  canvasRadii[c] = r
+  return c
+end
+
+-- Repositions/resizes an existing border canvas to a new frame.
+function M.updateBorderCanvas(canvas, frame)
+  if not canvas then return end
+  local r = canvasRadii[canvas] or radiusNoToolbar
+  local pad = borderPadding
+  canvas:frame({
+    x = frame.x - pad, y = frame.y - pad,
+    w = frame.w + pad * 2, h = frame.h + pad * 2
+  })
+  -- Update path coordinates (element 1 = border path)
+  canvas[1].coordinates = continuousCornerCoords(frame.w, frame.h, r, pad, pad)
+  -- Update emphasis line if present (element 2)
+  if canvas[2] then
+    -- Detect direction from existing emphasis coordinates
+    local old = canvas[2].coordinates
+    if old and #old == 2 then
+      local dir = nil
+      if old[1].x == old[2].x and old[1].x < pad + 1 then dir = "left"
+      elseif old[1].x == old[2].x then dir = "right"
+      elseif old[1].y == old[2].y and old[1].y < pad + 1 then dir = "up"
+      elseif old[1].y == old[2].y then dir = "down"
+      end
+      local emph = emphasisCoords(frame.w, frame.h, r, pad, pad, dir)
+      if emph then canvas[2].coordinates = emph end
+    end
+  end
+end
+
+-- Safely deletes a border canvas.
+function M.deleteBorderCanvas(canvas)
+  if canvas then canvasRadii[canvas] = nil end
+  safeDeleteCanvas(canvas)
 end
 
 -- Flash a border around a window to highlight it (thicker on the focus direction side)
@@ -124,86 +324,7 @@ function M.flashFocusHighlight(win, dir)
   local thisGen = focusHighlightGen
 
   local frame = win:frame()
-  local thin = 4
-  local thick = 12
-  local radius = 10  -- macOS-style rounded corners
-  local color = {red = 0.4, green = 0.7, blue = 1.0, alpha = 0.9}
-  local padding = thick / 2 + 2
-
-  focusHighlight = hs.canvas.new({
-    x = frame.x - padding,
-    y = frame.y - padding,
-    w = frame.w + padding * 2,
-    h = frame.h + padding * 2
-  })
-
-  -- Base rounded rectangle border (thin)
-  focusHighlight:appendElements({
-    type = "rectangle",
-    action = "stroke",
-    strokeColor = color,
-    strokeWidth = thin,
-    roundedRectRadii = {xRadius = radius, yRadius = radius},
-    frame = {x = padding - thin/2, y = padding - thin/2, w = frame.w + thin, h = frame.h + thin}
-  })
-
-  -- Thick emphasis line on the directional side
-  local emphasisLine = nil
-  if dir == "left" then
-    emphasisLine = {
-      type = "segments",
-      action = "stroke",
-      strokeColor = color,
-      strokeWidth = thick,
-      strokeCapStyle = "round",
-      coordinates = {
-        {x = padding, y = padding + radius},
-        {x = padding, y = padding + frame.h - radius}
-      }
-    }
-  elseif dir == "right" then
-    emphasisLine = {
-      type = "segments",
-      action = "stroke",
-      strokeColor = color,
-      strokeWidth = thick,
-      strokeCapStyle = "round",
-      coordinates = {
-        {x = padding + frame.w, y = padding + radius},
-        {x = padding + frame.w, y = padding + frame.h - radius}
-      }
-    }
-  elseif dir == "up" then
-    emphasisLine = {
-      type = "segments",
-      action = "stroke",
-      strokeColor = color,
-      strokeWidth = thick,
-      strokeCapStyle = "round",
-      coordinates = {
-        {x = padding + radius, y = padding},
-        {x = padding + frame.w - radius, y = padding}
-      }
-    }
-  elseif dir == "down" then
-    emphasisLine = {
-      type = "segments",
-      action = "stroke",
-      strokeColor = color,
-      strokeWidth = thick,
-      strokeCapStyle = "round",
-      coordinates = {
-        {x = padding + radius, y = padding + frame.h},
-        {x = padding + frame.w - radius, y = padding + frame.h}
-      }
-    }
-  end
-
-  if emphasisLine then
-    focusHighlight:appendElements(emphasisLine)
-  end
-
-  focusHighlight:show()
+  focusHighlight = M.createBorderCanvas(frame, dir, win)
 
   -- Fade out after a brief moment
   -- Use generation counter: if a newer highlight exists, this timer is a no-op
