@@ -190,6 +190,16 @@
     border: 1px dashed rgba(139, 148, 158, 0.35);
     border-radius: 2px;
   }
+  /* Green edge flash (matches stepper.lua edge highlight color) */
+  .ms .eg {
+    position: absolute; z-index: 5;
+    background: rgba(77, 204, 102, 0.7);
+    box-shadow: 0 0 4px rgba(77, 204, 102, 0.4);
+  }
+  .ms .eg.t { top: 0; left: 0; right: 0; height: 2px; }
+  .ms .eg.b { bottom: 0; left: 0; right: 0; height: 2px; }
+  .ms .eg.l { top: 0; bottom: 0; left: 0; width: 2px; }
+  .ms .eg.r { top: 0; bottom: 0; right: 0; width: 2px; }
 
   /* Modifier escalation HTML */
   .esc { text-align: center; }
@@ -392,11 +402,11 @@
     <h3>Snap to Edge</h3>
     <div class="cross vis">
       <div class="c top">
-        <div class="ms"><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="left:28%;top:3%;width:35%;height:45%"></div></div>
+        <div class="ms"><div class="eg t"></div><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="left:28%;top:3%;width:35%;height:45%"></div></div>
         <span class="kc">⌃↑</span><span class="label">Snap Top</span>
       </div>
       <div class="c left">
-        <div class="ms"><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="left:3%;top:25%;width:35%;height:45%"></div></div>
+        <div class="ms"><div class="eg l"></div><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="left:3%;top:25%;width:35%;height:45%"></div></div>
         <span class="kc">⌃←</span><span class="label">Snap Left</span>
       </div>
       <div class="c center center-neutral">
@@ -404,11 +414,11 @@
         <span class="label">before</span>
       </div>
       <div class="c right">
-        <div class="ms"><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="right:3%;top:25%;width:35%;height:45%"></div></div>
+        <div class="ms"><div class="eg r"></div><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="right:3%;top:25%;width:35%;height:45%"></div></div>
         <span class="kc">⌃→</span><span class="label">Snap Right</span>
       </div>
       <div class="c bottom">
-        <div class="ms"><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="left:28%;bottom:3%;width:35%;height:45%"></div></div>
+        <div class="ms"><div class="eg b"></div><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="left:28%;bottom:3%;width:35%;height:45%"></div></div>
         <span class="kc">⌃↓</span><span class="label">Snap Bottom</span>
       </div>
     </div>
@@ -420,11 +430,11 @@
     <h3>Resize to Edge</h3>
     <div class="cross vis">
       <div class="c top">
-        <div class="ms"><div class="wo" style="left:25%;top:30%;width:38%;height:40%"></div><div class="w" style="left:25%;top:3%;width:38%;height:67%"></div></div>
+        <div class="ms"><div class="eg t"></div><div class="wo" style="left:25%;top:30%;width:38%;height:40%"></div><div class="w" style="left:25%;top:3%;width:38%;height:67%"></div></div>
         <span class="kc">⌃⇧↑</span><span class="label">Stretch Top</span>
       </div>
       <div class="c left">
-        <div class="ms"><div class="wo" style="left:30%;top:25%;width:35%;height:45%"></div><div class="w" style="left:3%;top:25%;width:62%;height:45%"></div></div>
+        <div class="ms"><div class="eg l"></div><div class="wo" style="left:30%;top:25%;width:35%;height:45%"></div><div class="w" style="left:3%;top:25%;width:62%;height:45%"></div></div>
         <span class="kc">⌃⇧←</span><span class="label">Stretch Left</span>
       </div>
       <div class="c center center-neutral">
@@ -432,11 +442,11 @@
         <span class="label">before</span>
       </div>
       <div class="c right">
-        <div class="ms"><div class="wo" style="left:25%;top:25%;width:38%;height:45%"></div><div class="w" style="left:25%;top:25%;right:3%;height:45%"></div></div>
+        <div class="ms"><div class="eg r"></div><div class="wo" style="left:25%;top:25%;width:38%;height:45%"></div><div class="w" style="left:25%;top:25%;right:3%;height:45%"></div></div>
         <span class="kc">⌃⇧→</span><span class="label">Stretch Right</span>
       </div>
       <div class="c bottom">
-        <div class="ms"><div class="wo" style="left:25%;top:25%;width:38%;height:40%"></div><div class="w" style="left:25%;top:25%;width:38%;bottom:3%"></div></div>
+        <div class="ms"><div class="eg b"></div><div class="wo" style="left:25%;top:25%;width:38%;height:40%"></div><div class="w" style="left:25%;top:25%;width:38%;bottom:3%"></div></div>
         <span class="kc">⌃⇧↓</span><span class="label">Stretch Bottom</span>
       </div>
     </div>
@@ -460,11 +470,11 @@
         <span class="label">before</span>
       </div>
       <div class="c right">
-        <div class="ms"><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;right:3%;height:52%"></div></div>
+        <div class="ms"><div class="eg r"></div><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;right:3%;height:52%"></div></div>
         <span class="kc">⌥→</span><span class="label">Grow to right</span>
       </div>
       <div class="c bottom">
-        <div class="ms"><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;width:38%;bottom:3%"></div></div>
+        <div class="ms"><div class="eg b"></div><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;width:38%;bottom:3%"></div></div>
         <span class="kc">⌥↓</span><span class="label">Grow to bottom</span>
       </div>
     </div>
