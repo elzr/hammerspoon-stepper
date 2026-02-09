@@ -226,6 +226,25 @@
   }
   .ops-pill:last-child { margin-bottom: 0; }
   .ops-pill .kc { min-width: 1.6rem; }
+
+  /* Multi-screen layout for cross-screen focus */
+  .screens {
+    display: flex; gap: 3px; justify-content: center; align-items: center;
+  }
+  .screens.stacked { flex-direction: column; }
+  .scr {
+    width: 34px; height: 22px;
+    border: 1px solid var(--border); border-radius: 2px;
+    background: var(--bg); position: relative; overflow: hidden;
+  }
+  .scr.target {
+    background: var(--blue-fill); border-color: var(--blue-border);
+  }
+  .scr.current { border-style: dashed; }
+  .scr .dot {
+    position: absolute; width: 4px; height: 4px;
+    background: var(--accent); border-radius: 1px;
+  }
 </style>
 </head>
 <body>
@@ -455,28 +474,89 @@
     </div>
   </div>
 
-  <!-- Focus Same Screen (spatial cross) -->
+  <!-- Focus Same Screen (visual: windows within one screen) -->
   <div class="card">
     <h3>Focus — Same Screen</h3>
-    <div class="cross wide">
-      <div class="c top"><span class="kc">⌘↑</span><span class="label">Nearest above</span></div>
-      <div class="c left"><span class="kc">⌘←</span><span class="label">Nearest left</span></div>
-      <div class="c center center-neutral"><span style="font-size:0.75rem;color:var(--muted)">Focused</span></div>
-      <div class="c right"><span class="kc">⌘→</span><span class="label">Nearest right</span></div>
-      <div class="c bottom"><span class="kc">⌘↓</span><span class="label">Nearest below</span></div>
+    <div class="cross vis">
+      <div class="c top">
+        <div class="ms">
+          <div class="w" style="left:28%;top:5%;width:30%;height:30%"></div>
+          <div class="wo" style="left:22%;top:50%;width:30%;height:30%"></div>
+        </div>
+        <span class="kc">⌘↑</span><span class="label">Nearest above</span>
+      </div>
+      <div class="c left">
+        <div class="ms">
+          <div class="w" style="left:5%;top:20%;width:28%;height:35%"></div>
+          <div class="wo" style="left:52%;top:28%;width:30%;height:35%"></div>
+        </div>
+        <span class="kc">⌘←</span><span class="label">Nearest left</span>
+      </div>
+      <div class="c center center-neutral">
+        <div class="ms">
+          <div class="wo" style="left:8%;top:8%;width:26%;height:32%"></div>
+          <div class="wo" style="left:55%;top:12%;width:30%;height:28%"></div>
+          <div class="wo" style="left:18%;top:55%;width:32%;height:30%"></div>
+          <div class="wo" style="left:60%;top:52%;width:28%;height:34%"></div>
+        </div>
+        <span class="label">windows</span>
+      </div>
+      <div class="c right">
+        <div class="ms">
+          <div class="wo" style="left:8%;top:28%;width:30%;height:35%"></div>
+          <div class="w" style="left:58%;top:20%;width:30%;height:35%"></div>
+        </div>
+        <span class="kc">⌘→</span><span class="label">Nearest right</span>
+      </div>
+      <div class="c bottom">
+        <div class="ms">
+          <div class="wo" style="left:22%;top:10%;width:30%;height:30%"></div>
+          <div class="w" style="left:28%;top:58%;width:30%;height:30%"></div>
+        </div>
+        <span class="kc">⌘↓</span><span class="label">Nearest below</span>
+      </div>
     </div>
     <div class="undo-note">wraps around screen edges</div>
   </div>
 
-  <!-- Focus Cross Screen (spatial cross) -->
+  <!-- Focus Other Screen (visual: multiple displays) -->
   <div class="card">
     <h3>Focus — Other Screen</h3>
-    <div class="cross wide">
-      <div class="c top"><span class="kc">⌥⌘↑</span><span class="label">Upper screen</span></div>
-      <div class="c left"><span class="kc">⌥⌘←</span><span class="label">Left screen</span></div>
-      <div class="c center center-neutral"><span style="font-size:0.75rem;color:var(--muted)">Current</span></div>
-      <div class="c right"><span class="kc">⌥⌘→</span><span class="label">Right screen</span></div>
-      <div class="c bottom"><span class="kc">⌥⌘↓</span><span class="label">Lower screen</span></div>
+    <div class="cross vis">
+      <div class="c top">
+        <div class="screens stacked">
+          <div class="scr target"></div>
+          <div class="scr current"></div>
+        </div>
+        <span class="kc">⌥⌘↑</span><span class="label">Upper screen</span>
+      </div>
+      <div class="c left">
+        <div class="screens">
+          <div class="scr target"></div>
+          <div class="scr current"></div>
+        </div>
+        <span class="kc">⌥⌘←</span><span class="label">Left screen</span>
+      </div>
+      <div class="c center center-neutral">
+        <div class="screens">
+          <div class="scr current" style="width:42px;height:28px;border-style:solid"></div>
+        </div>
+        <span class="label">display</span>
+      </div>
+      <div class="c right">
+        <div class="screens">
+          <div class="scr current"></div>
+          <div class="scr target"></div>
+        </div>
+        <span class="kc">⌥⌘→</span><span class="label">Right screen</span>
+      </div>
+      <div class="c bottom">
+        <div class="screens stacked">
+          <div class="scr current"></div>
+          <div class="scr target"></div>
+        </div>
+        <span class="kc">⌥⌘↓</span><span class="label">Lower screen</span>
+      </div>
     </div>
     <div class="undo-note">focuses nearest window to source position</div>
   </div>
