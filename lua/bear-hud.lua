@@ -11,6 +11,8 @@
 local M = {}
 
 -- Module state
+local rightOptionHeld = false
+local raltWatcher = nil
 local positions = {}       -- {key = {caret=N, scroll=F}} where key is id or title
 local titleToId = {}        -- {windowTitle = noteId} learned from URL handler
 local positionsFile = nil   -- set by init()
@@ -597,6 +599,13 @@ function M.init(projectRoot, focus)
     saveTimer = hs.timer.doEvery(1800, guardedSave)
   end
 
+  -- Track physical right-option key via device-specific flag bit
+  raltWatcher = hs.eventtap.new({hs.eventtap.event.types.flagsChanged}, function(event)
+    rightOptionHeld = (event:rawFlags() & 0x40) ~= 0
+    return false
+  end)
+  raltWatcher:start()
+
   -- Load note hotkeys from bear-notes.json
   local notesFile = projectRoot .. "data/bear-notes.json"
   local nf = io.open(notesFile, "r")
@@ -613,10 +622,25 @@ function M.init(projectRoot, focus)
         for varName, varValue in pairs(vars) do
           title = title:gsub("%${" .. varName .. "}", varValue)
         end
+        -- Expand template vars in pastTitle (if present)
+        local pastTitle = note.pastTitle
+        if pastTitle then
+          for varName, varValue in pairs(vars) do
+            pastTitle = pastTitle:gsub("%${" .. varName .. "}", varValue)
+          end
+        end
         hs.hotkey.bind(mods, note.key, function()
-          handleNoteHotkey(title)
+          if rightOptionHeld and pastTitle then
+            handleNoteHotkey(pastTitle)
+          else
+            handleNoteHotkey(title)
+          end
         end)
-        print(string.format("[bear-hud] Bound %s → '%s'", note.key, title))
+        if pastTitle then
+          print(string.format("[bear-hud] Bound %s → '%s' (past: '%s')", note.key, title, pastTitle))
+        else
+          print(string.format("[bear-hud] Bound %s → '%s'", note.key, title))
+        end
       end
     end
   else

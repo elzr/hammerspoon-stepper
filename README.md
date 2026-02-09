@@ -168,6 +168,8 @@ Default bindings (hyperkey = ctrl+alt+shift+cmd):
 
 Weekly note titles use template variables (`weekNum`, `weekDays`) defined in `bear-notes.json`.
 
+**Past week**: Hold the **right option** key while pressing hyper+D/W/T to open the previous week's note instead. Uses `pastWeekNum`/`pastWeekDays` vars from `bear-notes.json`. Notes without a `pastTitle` (N, R, S, I) are unaffected.
+
 ### URL Handler
 
 The `hammerspoon://open-bear-note` URL handler is also available for external launchers:
