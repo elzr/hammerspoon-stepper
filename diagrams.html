@@ -62,7 +62,7 @@
   /* Hotpink direction arrows */
   .arr { color: hotpink; font-weight: 500; }
   /* Green accent for edge-related items */
-  .edge-mod { border-color: rgba(77, 204, 102, 0.35) !important; background: rgba(77, 204, 102, 0.08) !important; }
+  .edge-mod { border-left: 3px solid rgba(77, 204, 102, 0.6) !important; }
 
   /* Cross/spatial layout (snap, resize-edge, display, focus, etc.) */
   .cross {
@@ -113,7 +113,7 @@
   .seq + .seq { margin-top: 0.75rem; }
   .seq .arrow {
     display: flex; flex-direction: column; align-items: center;
-    gap: 1px; font-size: 0.72rem; color: hotpink;
+    gap: 1px; font-size: 0.72rem; color: var(--muted);
   }
   .seq .arrow .kc { font-size: 0.72rem; }
   .seq .state {
@@ -386,11 +386,11 @@
     <div class="cross vis">
       <div class="c top">
         <div class="ms"><div class="wo" style="left:22%;top:18%;width:38%;height:52%"></div><div class="w" style="left:22%;top:28%;width:38%;height:32%"></div></div>
-        <span class="kc">⇧↑</span><span class="label">Shorter</span>
+        <span class="kc">⇧<span class="arr">↑</span></span><span class="label">Shorter</span>
       </div>
       <div class="c left">
         <div class="ms"><div class="wo" style="left:22%;top:18%;width:38%;height:52%"></div><div class="w" style="left:32%;top:18%;width:22%;height:52%"></div></div>
-        <span class="kc">⇧←</span><span class="label">Narrower</span>
+        <span class="kc">⇧<span class="arr">←</span></span><span class="label">Narrower</span>
       </div>
       <div class="c center center-neutral">
         <div class="ms"><div class="wo" style="left:22%;top:18%;width:38%;height:52%"></div></div>
@@ -398,11 +398,11 @@
       </div>
       <div class="c right">
         <div class="ms"><div class="wo" style="left:22%;top:18%;width:38%;height:52%"></div><div class="w" style="left:16%;top:18%;width:56%;height:52%"></div></div>
-        <span class="kc">⇧→</span><span class="label">Wider</span>
+        <span class="kc">⇧<span class="arr">→</span></span><span class="label">Wider</span>
       </div>
       <div class="c bottom">
         <div class="ms"><div class="wo" style="left:22%;top:18%;width:38%;height:52%"></div><div class="w" style="left:22%;top:12%;width:38%;height:70%"></div></div>
-        <span class="kc">⇧↓</span><span class="label">Taller</span>
+        <span class="kc">⇧<span class="arr">↓</span></span><span class="label">Taller</span>
       </div>
     </div>
     <div class="undo-note">at screen edge → wraps to shrink from opposite side</div>
@@ -414,11 +414,11 @@
     <div class="cross vis">
       <div class="c top">
         <div class="ms"><div class="eg t"></div><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="left:28%;top:3%;width:35%;height:45%"></div></div>
-        <span class="kc">⌃↑</span><span class="label">Snap Top</span>
+        <span class="kc">⌃<span class="arr">↑</span></span><span class="label">Snap Top</span>
       </div>
       <div class="c left">
         <div class="ms"><div class="eg l"></div><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="left:3%;top:25%;width:35%;height:45%"></div></div>
-        <span class="kc">⌃←</span><span class="label">Snap Left</span>
+        <span class="kc">⌃<span class="arr">←</span></span><span class="label">Snap Left</span>
       </div>
       <div class="c center center-neutral">
         <div class="ms"><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div></div>
@@ -426,11 +426,11 @@
       </div>
       <div class="c right">
         <div class="ms"><div class="eg r"></div><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="right:3%;top:25%;width:35%;height:45%"></div></div>
-        <span class="kc">⌃→</span><span class="label">Snap Right</span>
+        <span class="kc">⌃<span class="arr">→</span></span><span class="label">Snap Right</span>
       </div>
       <div class="c bottom">
         <div class="ms"><div class="eg b"></div><div class="wo" style="left:28%;top:25%;width:35%;height:45%"></div><div class="w" style="left:28%;bottom:3%;width:35%;height:45%"></div></div>
-        <span class="kc">⌃↓</span><span class="label">Snap Bottom</span>
+        <span class="kc">⌃<span class="arr">↓</span></span><span class="label">Snap Bottom</span>
       </div>
     </div>
     <div class="undo-note">repeat → restore position</div>
@@ -442,11 +442,11 @@
     <div class="cross vis">
       <div class="c top">
         <div class="ms"><div class="eg t"></div><div class="wo" style="left:25%;top:30%;width:38%;height:40%"></div><div class="w" style="left:25%;top:3%;width:38%;height:67%"></div></div>
-        <span class="kc">⌃⇧↑</span><span class="label">Stretch Top</span>
+        <span class="kc">⌃⇧<span class="arr">↑</span></span><span class="label">Stretch Top</span>
       </div>
       <div class="c left">
         <div class="ms"><div class="eg l"></div><div class="wo" style="left:30%;top:25%;width:35%;height:45%"></div><div class="w" style="left:3%;top:25%;width:62%;height:45%"></div></div>
-        <span class="kc">⌃⇧←</span><span class="label">Stretch Left</span>
+        <span class="kc">⌃⇧<span class="arr">←</span></span><span class="label">Stretch Left</span>
       </div>
       <div class="c center center-neutral">
         <div class="ms"><div class="wo" style="left:25%;top:25%;width:38%;height:45%"></div></div>
@@ -454,11 +454,11 @@
       </div>
       <div class="c right">
         <div class="ms"><div class="eg r"></div><div class="wo" style="left:25%;top:25%;width:38%;height:45%"></div><div class="w" style="left:25%;top:25%;right:3%;height:45%"></div></div>
-        <span class="kc">⌃⇧→</span><span class="label">Stretch Right</span>
+        <span class="kc">⌃⇧<span class="arr">→</span></span><span class="label">Stretch Right</span>
       </div>
       <div class="c bottom">
         <div class="ms"><div class="eg b"></div><div class="wo" style="left:25%;top:25%;width:38%;height:40%"></div><div class="w" style="left:25%;top:25%;width:38%;bottom:3%"></div></div>
-        <span class="kc">⌃⇧↓</span><span class="label">Stretch Bottom</span>
+        <span class="kc">⌃⇧<span class="arr">↓</span></span><span class="label">Stretch Bottom</span>
       </div>
     </div>
     <div class="undo-note">repeat → restore size</div>
@@ -470,11 +470,11 @@
     <div class="cross vis">
       <div class="c top">
         <div class="ms"><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;width:38%;height:18%"></div></div>
-        <span class="kc">⌥↑</span><span class="label">Height to min</span>
+        <span class="kc">⌥<span class="arr">↑</span></span><span class="label">Height to min</span>
       </div>
       <div class="c left">
         <div class="ms"><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;width:14%;height:52%"></div></div>
-        <span class="kc">⌥←</span><span class="label">Width to min</span>
+        <span class="kc">⌥<span class="arr">←</span></span><span class="label">Width to min</span>
       </div>
       <div class="c center center-neutral">
         <div class="ms"><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div></div>
@@ -482,11 +482,11 @@
       </div>
       <div class="c right">
         <div class="ms"><div class="eg r"></div><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;right:3%;height:52%"></div></div>
-        <span class="kc">⌥→</span><span class="label">Grow to right</span>
+        <span class="kc">⌥<span class="arr">→</span></span><span class="label">Grow to right</span>
       </div>
       <div class="c bottom">
         <div class="ms"><div class="eg b"></div><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;width:38%;bottom:3%"></div></div>
-        <span class="kc">⌥↓</span><span class="label">Grow to bottom</span>
+        <span class="kc">⌥<span class="arr">↓</span></span><span class="label">Grow to bottom</span>
       </div>
     </div>
     <div class="undo-note">repeat → restore original size</div>
@@ -497,20 +497,20 @@
     <h3>Half / Third Cycle</h3>
     <div class="seq">
       <div class="state"><div class="ms"><div class="w" style="left:15%;top:15%;width:35%;height:65%"></div></div><span class="label">Normal</span></div>
-      <div class="arrow"><span class="kc">⇧⌥←</span>→</div>
-      <div class="state"><div class="ms"><div class="eg l"></div><div class="eg t"></div><div class="eg b"></div><div class="w" style="left:2px;top:2px;bottom:2px;width:calc(50% - 3px)"></div></div><span class="label">Left Half</span></div>
-      <div class="arrow"><span class="kc">⇧⌥←</span>→</div>
-      <div class="state"><div class="ms"><div class="eg l"></div><div class="eg t"></div><div class="eg b"></div><div class="w" style="left:2px;top:2px;bottom:2px;width:calc(33% - 3px)"></div></div><span class="label">Left Third</span></div>
-      <div class="arrow"><span class="kc">⇧⌥←</span>→</div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">←</span></span>→</div>
+      <div class="state"><div class="ms"><div class="eg l"></div><div class="w" style="left:2px;top:2px;bottom:2px;width:calc(50% - 3px)"></div></div><span class="label">Left Half</span></div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">←</span></span>→</div>
+      <div class="state"><div class="ms"><div class="eg l"></div><div class="w" style="left:2px;top:2px;bottom:2px;width:calc(33% - 3px)"></div></div><span class="label">Left Third</span></div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">←</span></span>→</div>
       <div class="state"><span class="label" style="color:var(--accent)">back</span></div>
     </div>
     <div class="seq">
       <div class="state"><div class="ms"><div class="w" style="right:20%;top:15%;width:35%;height:65%"></div></div><span class="label">Normal</span></div>
-      <div class="arrow"><span class="kc">⇧⌥→</span>→</div>
-      <div class="state"><div class="ms"><div class="eg r"></div><div class="eg t"></div><div class="eg b"></div><div class="w" style="right:2px;top:2px;bottom:2px;width:calc(50% - 3px)"></div></div><span class="label">Right Half</span></div>
-      <div class="arrow"><span class="kc">⇧⌥→</span>→</div>
-      <div class="state"><div class="ms"><div class="eg r"></div><div class="eg t"></div><div class="eg b"></div><div class="w" style="right:2px;top:2px;bottom:2px;width:calc(33% - 3px)"></div></div><span class="label">Right Third</span></div>
-      <div class="arrow"><span class="kc">⇧⌥→</span>→</div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">→</span></span>→</div>
+      <div class="state"><div class="ms"><div class="eg r"></div><div class="w" style="right:2px;top:2px;bottom:2px;width:calc(50% - 3px)"></div></div><span class="label">Right Half</span></div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">→</span></span>→</div>
+      <div class="state"><div class="ms"><div class="eg r"></div><div class="w" style="right:2px;top:2px;bottom:2px;width:calc(33% - 3px)"></div></div><span class="label">Right Third</span></div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">→</span></span>→</div>
       <div class="state"><span class="label" style="color:var(--accent)">back</span></div>
     </div>
   </div>
@@ -520,11 +520,11 @@
     <h3>Center Toggle</h3>
     <div class="seq">
       <div class="state"><div class="ms"><div class="w" style="left:8%;top:10%;width:40%;height:55%"></div></div><span class="label">Normal</span></div>
-      <div class="arrow"><span class="kc">⇧⌥↑</span>→</div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↑</span></span>→</div>
       <div class="state"><div class="ms"><div class="w" style="left:8%;top:50%;transform:translateY(-50%);width:40%;height:55%"></div></div><span class="label">Centered V</span></div>
-      <div class="arrow"><span class="kc">⇧⌥↑</span>→</div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↑</span></span>→</div>
       <div class="state"><div class="ms"><div class="w" style="left:50%;top:50%;transform:translate(-50%,-50%);width:40%;height:55%"></div></div><span class="label">Centered V+H</span></div>
-      <div class="arrow"><span class="kc">⇧⌥↑</span>→</div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↑</span></span>→</div>
       <div class="state"><span class="label" style="color:var(--accent)">back</span></div>
     </div>
   </div>
@@ -534,9 +534,9 @@
     <h3>Maximize Toggle</h3>
     <div class="seq">
       <div class="state"><div class="ms"><div class="w" style="left:12%;top:15%;width:45%;height:55%"></div></div><span class="label">Normal</span></div>
-      <div class="arrow"><span class="kc">⇧⌥↓</span>→</div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↓</span></span>→</div>
       <div class="state"><div class="ms"><div class="eg t"></div><div class="eg b"></div><div class="eg l"></div><div class="eg r"></div><div class="w" style="left:2px;top:2px;right:2px;bottom:2px"></div></div><span class="label">Maximized</span></div>
-      <div class="arrow"><span class="kc">⇧⌥↓</span>→</div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↓</span></span>→</div>
       <div class="state"><span class="label" style="color:var(--accent)">back</span></div>
     </div>
   </div>
@@ -552,7 +552,7 @@
           <div class="wo" style="left:25%;top:58%;width:32%;height:28%"></div>
           <div class="wf" style="right:6%;top:30%;width:20%;height:22%"></div>
         </div>
-        <span class="kc">⌘↑</span><span class="label">In shadow</span>
+        <span class="kc">⌘<span class="arr">↑</span></span><span class="label">In shadow</span>
       </div>
       <div class="c left">
         <div class="ms">
@@ -561,7 +561,7 @@
           <div class="wo" style="right:6%;top:25%;width:26%;height:38%"></div>
           <div class="wf" style="left:38%;top:72%;width:20%;height:18%"></div>
         </div>
-        <span class="kc">⌘←</span><span class="label">In shadow</span>
+        <span class="kc">⌘<span class="arr">←</span></span><span class="label">In shadow</span>
       </div>
       <div class="c center center-neutral">
         <div class="ms">
@@ -579,7 +579,7 @@
           <div class="w" style="right:5%;top:25%;width:24%;height:32%"></div>
           <div class="wf" style="left:35%;top:5%;width:20%;height:18%"></div>
         </div>
-        <span class="kc">⌘→</span><span class="label">In shadow</span>
+        <span class="kc">⌘<span class="arr">→</span></span><span class="label">In shadow</span>
       </div>
       <div class="c bottom">
         <div class="ms">
@@ -588,7 +588,7 @@
           <div class="w" style="left:30%;top:62%;width:26%;height:26%"></div>
           <div class="wf" style="left:5%;top:40%;width:18%;height:22%"></div>
         </div>
-        <span class="kc">⌘↓</span><span class="label">In shadow</span>
+        <span class="kc">⌘<span class="arr">↓</span></span><span class="label">In shadow</span>
       </div>
     </div>
     <div class="undo-note">shadow = perpendicular overlap · wraps around</div>
@@ -608,7 +608,7 @@
             <div class="tw src" style="left:28%;top:10%;width:30%;height:35%"></div>
           </div>
         </div>
-        <span class="kc">⌥⌘↑</span><span class="label">Nearest by Y</span>
+        <span class="kc">⌥⌘<span class="arr">↑</span></span><span class="label">Nearest by Y</span>
       </div>
       <div class="c left">
         <div class="screens">
@@ -620,7 +620,7 @@
             <div class="tw src" style="left:15%;top:25%;width:30%;height:35%"></div>
           </div>
         </div>
-        <span class="kc">⌥⌘←</span><span class="label">Nearest by Y</span>
+        <span class="kc">⌥⌘<span class="arr">←</span></span><span class="label">Nearest by Y</span>
       </div>
       <div class="c center center-neutral">
         <div class="screens">
@@ -642,7 +642,7 @@
             <div class="tw dim" style="right:5%;top:55%;width:22%;height:28%"></div>
           </div>
         </div>
-        <span class="kc">⌥⌘→</span><span class="label">Nearest by Y</span>
+        <span class="kc">⌥⌘<span class="arr">→</span></span><span class="label">Nearest by Y</span>
       </div>
       <div class="c bottom">
         <div class="screens stacked">
@@ -654,7 +654,7 @@
             <div class="tw dim" style="right:5%;top:55%;width:22%;height:28%"></div>
           </div>
         </div>
-        <span class="kc">⌥⌘↓</span><span class="label">Nearest by Y</span>
+        <span class="kc">⌥⌘<span class="arr">↓</span></span><span class="label">Nearest by Y</span>
       </div>
     </div>
     <div class="undo-note">focuses nearest window to source position</div>
@@ -664,11 +664,11 @@
   <div class="card">
     <h3>Move to Display</h3>
     <div class="cross">
-      <div class="c top"><span class="kc">⌃⌥↑</span><span class="label">Top</span></div>
-      <div class="c left"><span class="kc">⌃⌥←</span><span class="label">Left</span></div>
+      <div class="c top"><span class="kc">⌃⌥<span class="arr">↑</span></span><span class="label">Top</span></div>
+      <div class="c left"><span class="kc">⌃⌥<span class="arr">←</span></span><span class="label">Left</span></div>
       <div class="c center"><span class="kc">⌃⌥Enter</span><span class="label">Center</span></div>
-      <div class="c right"><span class="kc">⌃⌥→</span><span class="label">Right</span></div>
-      <div class="c bottom"><span class="kc">⌃⌥↓</span><span class="label">Built-in</span></div>
+      <div class="c right"><span class="kc">⌃⌥<span class="arr">→</span></span><span class="label">Right</span></div>
+      <div class="c bottom"><span class="kc">⌃⌥<span class="arr">↓</span></span><span class="label">Built-in</span></div>
     </div>
     <div class="undo-note">repeat same key within 1 hr to undo</div>
   </div>
