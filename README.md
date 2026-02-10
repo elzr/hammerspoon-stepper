@@ -37,7 +37,7 @@ All bindings use **fn + modifier + arrow keys** (Home/End/PageUp/PageDown):
 | **cmd** | Focus within current screen | fn + cmd + arrows |
 | **option+cmd** | Focus across screens | fn + option + cmd + arrows |
 | **shift+option** | Center/maximize toggle | fn + shift + option + up/down |
-| **shift+option** | Half/third cycle | fn + shift + option + left/right |
+| **shift+option** | Half/third/two-thirds cycle | fn + shift + option + left/right |
 
 ## Step Resize Behavior (fn + shift + arrows)
 
@@ -111,7 +111,8 @@ Progressive centering:
 Cycle through edge-aligned layouts:
 1. First press: half-width, full-height, aligned to that edge
 2. Second press: third-width, full-height, aligned to that edge
-3. Third press: restore previous size and position
+3. Third press: two-thirds-width, full-height, aligned to that edge
+4. Fourth press: restore previous size and position
 
 ## Unassigned (Available Functions)
 

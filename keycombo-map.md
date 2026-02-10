@@ -24,7 +24,7 @@ All fn combos use fn+arrow which Hammerspoon sees as Home/End/PageUp/PageDown.
 | ⌃ | ↔↕ | Snap to screen edge (repeat undoes) |
 | ⌃⇧ | ↔↕ | Resize to screen edge (repeat undoes) |
 | ⌥ | ↔↕ | Shrink/grow toggle |
-| ⇧⌥ | ↔ | Half → third → restore cycle |
+| ⇧⌥ | ↔ | Half → third → two-thirds → restore cycle |
 | ⇧⌥ | ↑ | Center toggle (V → H → restore) |
 | ⇧⌥ | ↓ | Maximize toggle |
 

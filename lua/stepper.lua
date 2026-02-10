@@ -393,17 +393,23 @@ local function cycleHalfThird(dir)
 
   local atLeft = math.abs(frame.x - screen.x) < tolerance
   local atRight = math.abs((frame.x + frame.w) - (screen.x + screen.w)) < tolerance
+  local twoThirdW = screen.w * 2 / 3
   local isHalf = math.abs(frame.w - halfW) < tolerance
   local isThird = math.abs(frame.w - thirdW) < tolerance
+  local isTwoThird = math.abs(frame.w - twoThirdW) < tolerance
   local isFullHeight = math.abs(frame.h - screen.h) < tolerance
 
   if dir == "left" then
     if atLeft and isHalf and isFullHeight then
-      -- Half → Third (stay full height)
+      -- Half → Third
       frame.w = thirdW
       frame.x = screen.x
     elseif atLeft and isThird and isFullHeight then
-      -- Third → Restore
+      -- Third → Two-thirds
+      frame.w = twoThirdW
+      frame.x = screen.x
+    elseif atLeft and isTwoThird and isFullHeight then
+      -- Two-thirds → Restore
       if spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
         local lastPos = spoon.WinWin._lastPositions[1]
         frame.x = lastPos.x or frame.x
@@ -421,11 +427,15 @@ local function cycleHalfThird(dir)
     end
   else  -- right
     if atRight and isHalf and isFullHeight then
-      -- Half → Third (stay full height)
+      -- Half → Third
       frame.w = thirdW
       frame.x = screen.x + screen.w - frame.w
     elseif atRight and isThird and isFullHeight then
-      -- Third → Restore
+      -- Third → Two-thirds
+      frame.w = twoThirdW
+      frame.x = screen.x + screen.w - frame.w
+    elseif atRight and isTwoThird and isFullHeight then
+      -- Two-thirds → Restore
       if spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
         local lastPos = spoon.WinWin._lastPositions[1]
         frame.x = lastPos.x or frame.x
