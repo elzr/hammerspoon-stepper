@@ -25,7 +25,7 @@ There is **no public macOS API** to say "put window W at z-position 5." You can 
 - Send a window to the back (`sendToBack`)
 - Read the current z-order (`hs.window.orderedWindows()`)
 
-The private `CGSOrderWindow` / `SLSOrderWindow` APIs can place a window relative to another, but they're undocumented and require a C extension. [Hammerspoon issue #2046](https://github.com/Hammerspoon/hammerspoon/issues/2046) confirms this gap.
+The private `CGSOrderWindow` / `SLSOrderWindow` APIs can place a window relative to another, but they require SIP to be partially disabled to work cross-app (see attempt 4 below). [Hammerspoon issue #2046](https://github.com/Hammerspoon/hammerspoon/issues/2046) confirms this gap.
 
 ## Hammerspoon APIs and What They Actually Do
 
@@ -85,11 +85,18 @@ So the only way to "lower" a window is to raise everything that should be above 
 
 \* `raise()` correctly reorders windows within the same app. Cross-app interleaving may not be perfectly restored because `raise()` on an inactive app's window only reorders within that app's stack.
 
-## Current Implementation: Unconditional focus()
+## Current Implementation: Deferred focus()
 
-The working implementation calls `w:focus()` on every captured above-window back-to-front, then `focusSingleWindow(prevWin)` at the end. This produces correct z-order in all cases (same-app, interleaved multi-app) but causes beeps and menu bar flashing from the rapid app activations.
+The implementation defers `w:focus()` calls until all modifier keys are released, then calls `focus()` on every captured above-window back-to-front, then `focusSingleWindow(prevWin)` at the end. This produces correct z-order in all cases (same-app, interleaved multi-app) without beeps.
 
 ```lua
+-- Poll HID state every 50ms until modifiers released (2s timeout)
+local function anyModifiersHeld()
+  local mods = hs.eventtap.checkKeyboardModifiers()
+  return mods.cmd or mods.alt or mods.shift or mods.ctrl
+end
+
+-- When modifiers released:
 for i = #appsAbove, 1, -1 do
   w:focus()              -- activates w's app, brings w to absolute front
   hs.timer.usleep(10000) -- 10ms settle
@@ -111,17 +118,47 @@ focusSingleWindow(prevWin)
 
 **Result**: Wrong z-order. Apple explicitly documents that `AXRaise` on a non-active app's window "will not go in front of the active application's windows." After focusing prevWin (Chrome), the `raise()` calls on other Chrome windows brought them above prevWin — the wrong Chrome window ended up on top. And when prevWin's app differs from the above-windows' app, `raise()` can't cross the app boundary at all. `raise()` is fundamentally insufficient for cross-app z-order.
 
-### Attempt 3: Deferred restore (wait for modifier key release)
+### Attempt 3: Deferred restore via eventtap (wait for modifier release)
 
 **Idea**: Use `hs.eventtap` to watch `flagsChanged` events, defer the entire restore until all modifier keys (ctrl/shift/cmd/alt/fn) are released. No modifiers held → no beep when `focus()` activates apps.
 
-**Result**: Still beeped, and the restore triggered with a long visible delay (well after keys were released). The `hs.eventtap` + `checkKeyboardModifiers()` approach appears unreliable for detecting modifier release timing — possibly because the hyper key combo (fn+ctrl+shift+cmd+opt) doesn't generate clean per-key `flagsChanged` events, or because the modifier state reported by `checkKeyboardModifiers()` lags behind physical key state. The delay was visually jarring regardless.
+**Result**: Still beeped, and the restore triggered with a long visible delay (well after keys were released). The `hs.eventtap` + `checkKeyboardModifiers()` approach appeared unreliable — possibly because the hyper key combo (fn+ctrl+shift+cmd+opt) doesn't generate clean per-key `flagsChanged` events, or because the modifier state reported by `checkKeyboardModifiers()` lags behind physical key state.
 
-### Why Beeps Are Fundamentally Hard
+### Attempt 4: CGSOrderWindow / SLSOrderWindow (C extension)
 
-The beep happens at the **window server level**, not the event loop level. When `focus()` activates an app, the window server notifies that app of the current physical modifier state. If hyper keys (ctrl+shift+cmd+opt) are physically down, the newly activated app receives those modifiers and beeps because it has no handler for that key combination. This happens below the level where `hs.eventtap` can intercept — it's a consequence of app activation itself, not of keyboard events flowing through the normal event pipeline.
+**Idea**: Use private `CGSOrderWindow` or `SLSOrderWindow` API via a compiled Lua C module to reorder windows without app activation. These APIs place a window above/below another by window ID, bypassing the app activation mechanism entirely.
 
-The only known path to eliminating beeps would be:
-- **`CGSOrderWindow`/`SLSOrderWindow`**: Private Core Graphics APIs that can reorder windows without activating apps. Would require a C extension for Hammerspoon. See [issue #2046](https://github.com/Hammerspoon/hammerspoon/issues/2046).
-- **Suppress system alert sound globally** during restore: Hacky, affects all apps, timing-sensitive.
-- **Accept the beeps**: The current approach. Z-order is correct; beeps are cosmetic.
+**Implementation**: Built `cgs_order.c` → `~/.hammerspoon/cgs_order.so`, exposing `reorder(windowID, mode, relativeWindowID)`. Tried both `CGSOrderWindow` and `SLSOrderWindow` (SkyLight equivalent).
+
+**Result**: Both return error 1000 (`kCGErrorFailure`) for cross-app windows. The process's own CGS/SLS connection can only reorder windows it owns. Reordering other apps' windows requires a privileged connection (like the Dock's), which in turn requires SIP to be partially disabled (as yabai does with its scripting addition). Not viable without SIP modification.
+
+The limitation is permissions, not code — the module compiled and loaded fine.
+
+### Attempt 5: Deferred restore via polling (current implementation)
+
+**Idea**: Same deferred approach as attempt 3, but using a polling timer with `hs.eventtap.checkKeyboardModifiers()` every 50ms instead of reactive eventtap events. Only checks beep-causing modifiers (cmd/alt/shift/ctrl), not fn (which is a hardware key that doesn't cause beeps). Times out after 2s and restores anyway.
+
+**Result**: Still beeps. The modifier polling itself works (`checkKeyboardModifiers()` reliably reports when modifiers are released), but beeps still occur when the deferred `focus()` calls fire. This suggests the beep may not be purely from held modifiers — it may be an artifact of rapid app activation itself, or a race between the HID state that `checkKeyboardModifiers()` reads and the window server's own modifier tracking.
+
+## Why Beeps Are So Hard to Eliminate
+
+The problem is a chain of constraints where each link forces the next:
+
+1. **No z-order write API exists.** macOS lets you *read* window order (`orderedWindows()`) but the only way to *set* position is pushing a window to the front. No "put window W at position N."
+
+2. **So restoring z-order requires raising every above-window.** To put 5 windows back above the Bear note, you must bring each one to the front, back-to-front. There's no shortcut.
+
+3. **Cross-app raising requires `focus()`.** `raise()` (AXRaise) only reorders within the active app's own stack — Apple explicitly won't let it jump above the active app's windows. `focus()` is the only call that crosses the app boundary.
+
+4. **`focus()` activates the target app.** That's what makes it work — it tells the window server "this app is now frontmost." There's no "raise without activating" public API.
+
+5. **App activation forwards held modifier state.** This happens inside the window server, not in the event pipeline. The moment Chrome gets activated, the window server tells Chrome "hey, ctrl+shift+cmd+opt are currently down." Chrome has no menu item for that combo, so it beeps.
+
+6. **Private APIs that skip activation (`CGSOrderWindow`/`SLSOrderWindow`) need SIP disabled.** They work — yabai uses them — but only via a scripting addition injected into the Dock process, which has a privileged connection. From Hammerspoon's own connection, they return error 1000 for other apps' windows.
+
+7. **Deferring until modifiers are released should work in theory** but still beeps in practice — either `checkKeyboardModifiers()` races with the window server's own modifier tracking, or the rapid app-switch sequence itself produces beeps for a reason other than modifiers.
+
+## Next investigations
+
+- **Debug #7**: trigger restoreZOrder from the HS console with zero modifiers held. If it still beeps, the beeps aren't from modifiers at all and the entire deferred approach is a dead end.
+- **Mute alert sound during restore**: `hs.osascript.applescript('set volume alert volume 0')` before the focus() loop, restore after. Hacky but would silence beeps regardless of their cause.

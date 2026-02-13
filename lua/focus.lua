@@ -80,6 +80,7 @@ local function focusSingleWindow(win)
   local winTitle = win:title() or "untitled"
   print(string.format("[focusSingleWindow] Targeting: %s - %s", appName, winTitle))
 
+  if win:isMinimized() then win:unminimize() end
   local raiseResult = win:raise()
   print(string.format("[focusSingleWindow] raise() returned: %s", tostring(raiseResult)))
 
