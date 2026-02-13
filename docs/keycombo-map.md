@@ -95,6 +95,10 @@ Position preserved. Oversized windows shrink to fit (restored when moved back).
 | T | Weekly thoughts |
 | S | _topsight 2026 |
 | I | _index 2026 |
+| X | live window (set with R⌥) |
+| Q | live window (set with R⌥) |
+| A | live window (set with R⌥) |
+| Z | live window (set with R⌥) |
 
 Toggle: open → raise → unfocus (z-order restored).
 Summon (right-shift + ◆ letter): summon to cursor → send back + refocus.

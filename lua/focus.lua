@@ -243,9 +243,10 @@ end
 -- Creates a canvas with continuous-corner border around `frame`, shown immediately.
 -- `dir` (optional) adds a thick emphasis line on that edge ("left"/"right"/"up"/"down").
 -- `win` (optional) used to detect toolbar and pick matching corner radius.
-function M.createBorderCanvas(frame, dir, win)
+function M.createBorderCanvas(frame, dir, win, opts)
   local r = (win and hasNativeToolbar(win)) and radiusToolbar or radiusNoToolbar
   local pad = borderPadding
+  local color = (opts and opts.color) or borderColor
   local c = hs.canvas.new({
     x = frame.x - pad, y = frame.y - pad,
     w = frame.w + pad * 2, h = frame.h + pad * 2
@@ -255,7 +256,7 @@ function M.createBorderCanvas(frame, dir, win)
   c:appendElements({
     type = "segments",
     action = "stroke",
-    strokeColor = borderColor,
+    strokeColor = color,
     strokeWidth = borderThin,
     closed = true,
     coordinates = continuousCornerCoords(frame.w, frame.h, r, pad, pad),
@@ -267,7 +268,7 @@ function M.createBorderCanvas(frame, dir, win)
     c:appendElements({
       type = "segments",
       action = "stroke",
-      strokeColor = borderColor,
+      strokeColor = color,
       strokeWidth = borderThick,
       strokeCapStyle = "round",
       coordinates = emph,
@@ -314,7 +315,7 @@ function M.deleteBorderCanvas(canvas)
 end
 
 -- Flash a border around a window to highlight it (thicker on the focus direction side)
-function M.flashFocusHighlight(win, dir)
+function M.flashFocusHighlight(win, dir, opts)
   -- Always clean up previous highlight
   safeDeleteCanvas(focusHighlight)
   focusHighlight = nil
@@ -324,7 +325,7 @@ function M.flashFocusHighlight(win, dir)
   local thisGen = focusHighlightGen
 
   local frame = win:frame()
-  focusHighlight = M.createBorderCanvas(frame, dir, win)
+  focusHighlight = M.createBorderCanvas(frame, dir, win, opts)
 
   -- Fade out after a brief moment
   -- Use generation counter: if a newer highlight exists, this timer is a no-op

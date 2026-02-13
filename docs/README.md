@@ -180,6 +180,16 @@ Weekly note titles use template variables (`weekNum`, `weekDays`) defined in `be
 
 **Past week**: Hold the **right option** key while pressing hyper+D/W/T to open the previous week's note instead. Uses `pastWeekNum`/`pastWeekDays` vars from `bear-notes.json`. Notes without a `pastTitle` (N, R, S, I) are unaffected.
 
+### Live Window Hotkeys (hyper+X/Q/A/Z)
+
+Four independently assignable "quick access" hotkeys for any window — terminals, browsers, docs, or Bear notes. Each slot captures a window by app + title, so you can toggle it back instantly.
+
+- **Set**: Focus any window, then press **right-option + hyper+{X,Q,A,Z}**. A yellow flash confirms the binding.
+- **Use**: **hyper+{letter}** toggles the window (raise/unfocus with z-order restore). **right-shift + hyper+{letter}** summons it to the cursor.
+- **Bear bonus**: If the pinned window belongs to Bear, caret and scroll position are automatically saved/restored.
+- **Window gone**: If the app quit or the window was closed, a console message is printed (no-op). Bear notes are re-opened automatically.
+- **Persist**: Stored in `data/live-toggle-hotkeys.json`, survives Hammerspoon reloads.
+
 ### URL Handler
 
 The `hammerspoon://open-bear-note` URL handler is also available for external launchers:
