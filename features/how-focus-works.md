@@ -67,6 +67,7 @@ Only then can `focus()` reliably give keyboard focus to the now-frontmost window
 
 ```lua
 local function focusSingleWindow(win)
+  if win:isMinimized() then win:unminimize() end
   win:raise()
   hs.timer.usleep(10000)  -- 10ms delay - critical for reliability
   win:focus()
@@ -80,7 +81,7 @@ When testing focus behavior:
 - [ ] Window on different screen
 - [ ] Window from different application
 - [ ] Window from same application (e.g., multiple Chrome windows)
-- [ ] Minimized window (may need `unminimize()` first)
+- [ ] Minimized window (`focusSingleWindow` calls `unminimize()` automatically)
 - [ ] Full-screen window (special handling needed)
 
 ## Related Hammerspoon APIs

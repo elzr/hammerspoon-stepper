@@ -156,11 +156,11 @@ Configured in `bear-notes.json`. Each hotkey toggles through three states:
 |-------|-------|--------|
 | 1st | Not open | Opens note in Bear, restores caret/scroll position |
 | 2nd | Open, not focused | Raises + focuses the note window |
-| 3rd | Focused | Unfocuses, returns to previous app |
+| 3rd | Focused | Minimizes the window, macOS auto-focuses previous |
 
 ### Summon to Cursor (right-shift + hyperkey + letter)
 
-Hold the **right shift** key while pressing the hyperkey combo to summon the note window to your mouse cursor. Press again (with right-shift) to return it to its original position and refocus the previous app. Z-order is fully restored.
+Hold the **right shift** key while pressing the hyperkey combo to summon the note window to your mouse cursor. Press again (with right-shift) to return it to its original position and minimize it (macOS auto-focuses the previous window).
 
 Summon works whether the note is open or not — if closed, it opens and summons in one step.
 
@@ -185,7 +185,7 @@ Weekly note titles use template variables (`weekNum`, `weekDays`) defined in `be
 Four independently assignable "quick access" hotkeys for any window — terminals, browsers, docs, or Bear notes. Each slot captures a window by app + title, so you can toggle it back instantly.
 
 - **Set**: Focus any window, then press **right-option + hyper+{X,Q,A,Z}**. A yellow flash confirms the binding.
-- **Use**: **hyper+{letter}** toggles the window (raise/unfocus with z-order restore). **right-shift + hyper+{letter}** summons it to the cursor.
+- **Use**: **hyper+{letter}** toggles the window (raise/minimize). **right-shift + hyper+{letter}** summons it to the cursor.
 - **Bear bonus**: If the pinned window belongs to Bear, caret and scroll position are automatically saved/restored.
 - **Window gone**: If the app quit or the window was closed, a console message is printed (no-op). Bear notes are re-opened automatically.
 - **Persist**: Stored in `data/live-toggle-hotkeys.json`, survives Hammerspoon reloads.

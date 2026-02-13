@@ -100,5 +100,5 @@ Position preserved. Oversized windows shrink to fit (restored when moved back).
 | A | live window (set with R⌥) |
 | Z | live window (set with R⌥) |
 
-Toggle: open → raise → unfocus (z-order restored).
-Summon (right-shift + ◆ letter): summon to cursor → send back + refocus.
+Toggle: open → raise → minimize (macOS auto-focuses previous window).
+Summon (right-shift + ◆ letter): summon to cursor → return + minimize.
