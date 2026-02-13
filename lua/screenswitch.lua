@@ -97,6 +97,10 @@ function M.buildScreenMap()
   end
   if #centerColumn >= 2 and not map.top then
     map.top = centerColumn[2].screen
+  elseif #centerColumn == 1 and not map.top then
+    -- Only one screen above built-in: reachable as both center and top
+    -- (e.g., laptop + single TV above)
+    map.top = centerColumn[1].screen
   end
 
   -- Sides: sort by x (leftmost first)
