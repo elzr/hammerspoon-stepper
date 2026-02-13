@@ -12,6 +12,7 @@ local M = {}
 
 -- Module state
 local rightOptionHeld = false
+local rightShiftHeld = false
 local raltWatcher = nil
 local positions = {}       -- {key = {caret=N, scroll=F}} where key is id or title
 local titleToId = {}        -- {windowTitle = noteId} learned from URL handler
@@ -19,7 +20,8 @@ local positionsFile = nil   -- set by init()
 local appWatcher = nil
 local saveTimer = nil
 local focusModule = nil     -- set by init(), provides flashFocusHighlight + focusSingleWindow
-local summonedNotes = {}    -- {title = {previousWin=<window>, originalFrame={x,y,w,h}}}
+local summonedNotes = {}    -- {title = {previousWin, originalFrame, appsAbove}}
+local noteToggleState = {}  -- {title = {previousWin=<window>}}
 local saveInFlight = false  -- guards against overlapping timer saves
 local dirty = false         -- tracks whether positions need writing to disk
 
@@ -406,6 +408,28 @@ end
 -- Note hotkey state machine
 -- =============================================================================
 
+-- Capture z-order: unique app bundle IDs with windows above the note on same screen
+-- Returns front-to-back order; called before activating Bear so the z-stack is accurate
+local function getAppsAboveWindow(noteWin)
+  local noteID = noteWin:id()
+  local screenID = noteWin:screen():id()
+  local bearBundleID = noteWin:application():bundleID()
+  local ordered = hs.window.orderedWindows()
+  local apps = {}
+  local seen = {}
+  for _, w in ipairs(ordered) do
+    if w:id() == noteID then break end
+    if w:isStandard() and w:screen():id() == screenID then
+      local bundleID = w:application():bundleID()
+      if bundleID and bundleID ~= bearBundleID and not seen[bundleID] then
+        seen[bundleID] = true
+        table.insert(apps, bundleID)
+      end
+    end
+  end
+  return apps
+end
+
 -- Find a Bear window by title (using hs.window objects, not AX)
 local function findBearWindowByTitle(title)
   local bear = hs.application.get("Bear")
@@ -435,42 +459,25 @@ local function centerOnCursor(win)
   hs.window.animationDuration = 0.3
 end
 
--- Handle a note hotkey press (implements the state machine)
+-- Handle a note hotkey press (simple toggle: open / raise / unfocus)
 local function handleNoteHotkey(noteTitle)
   print(string.format("[bear-hud] Hotkey for '%s'", noteTitle))
-
-  local state = summonedNotes[noteTitle]
   local noteWin = findBearWindowByTitle(noteTitle)
-
-  -- Summoned → refocus previous window, then restore original position behind it
-  if state and state.originalFrame then
-    print(string.format("[bear-hud] Unsummoning '%s'", noteTitle))
-    if state.previousWin and state.previousWin:isVisible() then
-      focusModule.focusSingleWindow(state.previousWin)
-      focusModule.flashFocusHighlight(state.previousWin, nil)
-    end
-    local orig = state.originalFrame
-    hs.window.animationDuration = 0
-    noteWin:setFrame(orig)
-    hs.window.animationDuration = 0.3
-    summonedNotes[noteTitle] = nil
-    return
-  end
 
   -- Not open → open via bear:// URL
   if not noteWin then
     print(string.format("[bear-hud] Opening '%s'", noteTitle))
+    local focusedWin = hs.window.focusedWindow()
     M.saveCurrentPosition()
     openNoteInBear(noteTitle)
-    -- Poll for the window to appear, then highlight it
     local attempts = 0
     local function waitForWindow()
       attempts = attempts + 1
       local win = findBearWindowByTitle(noteTitle)
       if win then
+        noteToggleState[noteTitle] = {previousWin = focusedWin, appsAbove = getAppsAboveWindow(win)}
         focusModule.focusSingleWindow(win)
         focusModule.flashFocusHighlight(win, nil)
-        summonedNotes[noteTitle] = {previousWin = nil}
         M.restoreForNote(noteTitle, noteTitle)
       elseif attempts < 30 then
         hs.timer.doAfter(0.1, waitForWindow)
@@ -484,43 +491,131 @@ local function handleNoteHotkey(noteTitle)
 
   local focusedWin = hs.window.focusedWindow()
 
-  -- Already focused → summon to cursor (for different-screen or re-summon cases)
+  -- Focused → unfocus (go back to previous window)
   if focusedWin and focusedWin:id() == noteWin:id() then
-    print(string.format("[bear-hud] Summoning '%s' to cursor", noteTitle))
-    if not state then
-      state = {previousWin = nil}
-    end
-    local frame = noteWin:frame()
-    state.originalFrame = {x = frame.x, y = frame.y, w = frame.w, h = frame.h}
-    summonedNotes[noteTitle] = state
-    centerOnCursor(noteWin)
-    focusModule.flashFocusHighlight(noteWin, nil)
-    return
-  end
-
-  -- Open, not focused, same screen → focus + summon to cursor in one step
-  local noteScreen = noteWin:screen()
-  local cursorScreen = hs.mouse.getCurrentScreen()
-  if noteScreen and cursorScreen and noteScreen:id() == cursorScreen:id() then
-    print(string.format("[bear-hud] Summoning '%s' (same screen)", noteTitle))
+    print(string.format("[bear-hud] Unfocusing '%s'", noteTitle))
     M.saveCurrentPosition()
-    local frame = noteWin:frame()
-    summonedNotes[noteTitle] = {
-      previousWin = focusedWin,
-      originalFrame = {x = frame.x, y = frame.y, w = frame.w, h = frame.h},
-    }
-    centerOnCursor(noteWin)
-    focusModule.focusSingleWindow(noteWin)
-    focusModule.flashFocusHighlight(noteWin, nil)
+    local state = noteToggleState[noteTitle]
+    if state and state.previousWin and state.previousWin:isVisible() then
+      -- Restore z-order: reactivate apps that were above Bear before we raised it
+      -- Small sleep between activations so window server processes them in order
+      local appsAbove = state.appsAbove or {}
+      local prevApp = state.previousWin:application()
+      local prevBundleID = prevApp and prevApp:bundleID()
+      for i = #appsAbove, 1, -1 do
+        if appsAbove[i] ~= prevBundleID then
+          local app = hs.application.get(appsAbove[i])
+          if app then
+            app:activate()
+            hs.timer.usleep(10000)
+          end
+        end
+      end
+      focusModule.focusSingleWindow(state.previousWin)
+    end
+    noteToggleState[noteTitle] = nil
     return
   end
 
-  -- Open, not focused, different screen → just raise + focus
+  -- Open, not focused → raise + focus
   print(string.format("[bear-hud] Raising '%s'", noteTitle))
   M.saveCurrentPosition()
-  summonedNotes[noteTitle] = {previousWin = focusedWin}
+  noteToggleState[noteTitle] = {previousWin = focusedWin, appsAbove = getAppsAboveWindow(noteWin)}
   focusModule.focusSingleWindow(noteWin)
   focusModule.flashFocusHighlight(noteWin, nil)
+end
+
+-- Handle a summon hotkey press (right-shift + hyper: summon to cursor / unsummon)
+local function handleNoteSummon(noteTitle)
+  print(string.format("[bear-hud] Summon hotkey for '%s'", noteTitle))
+  local noteWin = findBearWindowByTitle(noteTitle)
+
+  -- Already summoned → unsummon
+  local state = summonedNotes[noteTitle]
+  if state and state.originalFrame and noteWin then
+    print(string.format("[bear-hud] Unsummoning '%s'", noteTitle))
+
+    -- Move Bear note back to original position (instant)
+    hs.window.animationDuration = 0
+    noteWin:setFrame(state.originalFrame)
+    hs.window.animationDuration = 0.3
+
+    -- Restore z-order: reactivate apps that were above Bear before summoning
+    -- Small sleep between activations so window server processes them in order
+    local appsAbove = state.appsAbove or {}
+    local prevApp = state.previousWin and state.previousWin:isVisible()
+      and state.previousWin:application()
+    local prevBundleID = prevApp and prevApp:bundleID()
+    for i = #appsAbove, 1, -1 do
+      if appsAbove[i] ~= prevBundleID then
+        local app = hs.application.get(appsAbove[i])
+        if app then
+          app:activate()
+          hs.timer.usleep(10000)
+        end
+      end
+    end
+
+    -- Focus previous window last (its app ends up on top)
+    if state.previousWin and state.previousWin:isVisible() then
+      focusModule.focusSingleWindow(state.previousWin)
+    end
+
+    summonedNotes[noteTitle] = nil
+    return
+  end
+
+  -- Note not open → open it first, then summon after it appears
+  if not noteWin then
+    print(string.format("[bear-hud] Opening + summoning '%s'", noteTitle))
+    local focusedWin = hs.window.focusedWindow()
+    M.saveCurrentPosition()
+    openNoteInBear(noteTitle)
+    local attempts = 0
+    local function waitAndSummon()
+      attempts = attempts + 1
+      local win = findBearWindowByTitle(noteTitle)
+      if win then
+        local frame = win:frame()
+        summonedNotes[noteTitle] = {
+          previousWin = focusedWin,
+          originalFrame = {x = frame.x, y = frame.y, w = frame.w, h = frame.h},
+          appsAbove = getAppsAboveWindow(win),
+        }
+        centerOnCursor(win)
+        focusModule.focusSingleWindow(win)
+        M.restoreForNote(noteTitle, noteTitle)
+      elseif attempts < 30 then
+        hs.timer.doAfter(0.1, waitAndSummon)
+      else
+        print(string.format("[bear-hud] Gave up waiting for window '%s'", noteTitle))
+      end
+    end
+    hs.timer.doAfter(0.2, waitAndSummon)
+    return
+  end
+
+  -- Note exists → summon to cursor
+  print(string.format("[bear-hud] Summoning '%s' to cursor", noteTitle))
+  local focusedWin = hs.window.focusedWindow()
+  local prev
+  if focusedWin and focusedWin:id() == noteWin:id() then
+    -- Note already focused — use toggle's previousWin for unsummon target
+    local toggle = noteToggleState[noteTitle]
+    prev = toggle and toggle.previousWin
+  else
+    prev = focusedWin
+    M.saveCurrentPosition()
+  end
+
+  local frame = noteWin:frame()
+  summonedNotes[noteTitle] = {
+    previousWin = prev,
+    originalFrame = {x = frame.x, y = frame.y, w = frame.w, h = frame.h},
+    appsAbove = getAppsAboveWindow(noteWin),
+  }
+  centerOnCursor(noteWin)
+  focusModule.focusSingleWindow(noteWin)
 end
 
 -- =============================================================================
@@ -554,14 +649,14 @@ function M.init(projectRoot, focus)
         dirty = true
       end
 
-      -- Open the note in Bear
+      -- Open the note in Bear (show_window=yes so Bear raises it directly)
       local bearURL
       if id then
         bearURL = "bear://x-callback-url/open-note?id=" .. id
-          .. "&edit=yes&new_window=yes&show_window=no"
+          .. "&edit=yes&new_window=yes"
       else
         bearURL = "bear://x-callback-url/open-note?title=" .. title:gsub(" ", "%%20")
-          .. "&edit=yes&new_window=yes&show_window=no"
+          .. "&edit=yes&new_window=yes"
       end
       hs.urlevent.openURL(bearURL)
 
@@ -599,9 +694,11 @@ function M.init(projectRoot, focus)
     saveTimer = hs.timer.doEvery(1800, guardedSave)
   end
 
-  -- Track physical right-option key via device-specific flag bit
+  -- Track physical right-option (0x40) and right-shift (0x04) via device-specific flag bits
   raltWatcher = hs.eventtap.new({hs.eventtap.event.types.flagsChanged}, function(event)
-    rightOptionHeld = (event:rawFlags() & 0x40) ~= 0
+    local flags = event:rawFlags()
+    rightOptionHeld = (flags & 0x40) ~= 0
+    rightShiftHeld = (flags & 0x04) ~= 0
     return false
   end)
   raltWatcher:start()
@@ -630,10 +727,11 @@ function M.init(projectRoot, focus)
           end
         end
         hs.hotkey.bind(mods, note.key, function()
-          if rightOptionHeld and pastTitle then
-            handleNoteHotkey(pastTitle)
+          local t = (rightOptionHeld and pastTitle) and pastTitle or title
+          if rightShiftHeld then
+            handleNoteSummon(t)
           else
-            handleNoteHotkey(title)
+            handleNoteHotkey(t)
           end
         end)
         if pastTitle then

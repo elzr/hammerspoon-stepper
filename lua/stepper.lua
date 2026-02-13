@@ -325,30 +325,35 @@ local function restoreOrGrow(dir)
   end
 end
 
--- Toggle maximize/restore
-local function toggleMaximize()
+-- Cycle maximize: max height → max height+width → restore
+local function cycleMaximize()
   local win, frame, screen = setupWindowOperation(false)  -- don't save yet
   if not win then return end
 
-  -- Check if already maximized (within 10px tolerance)
-  local isMaximized = math.abs(frame.x - screen.x) < 10 and
-                      math.abs(frame.y - screen.y) < 10 and
-                      math.abs(frame.w - screen.w) < 10 and
-                      math.abs(frame.h - screen.h) < 10
+  local tolerance = 10
+  local isMaxHeight = math.abs(frame.y - screen.y) < tolerance and
+                      math.abs(frame.h - screen.h) < tolerance
+  local isMaxWidth = math.abs(frame.x - screen.x) < tolerance and
+                     math.abs(frame.w - screen.w) < tolerance
 
-  if isMaximized and spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
-    -- Restore previous position
-    local lastPos = spoon.WinWin._lastPositions[1]
-    frame.x = lastPos.x or frame.x
-    frame.y = lastPos.y or frame.y
-    frame.w = lastPos.w or frame.w
-    frame.h = lastPos.h or frame.h
-  else
-    -- Save current position, then maximize
-    setupWindowOperation(true)
+  if isMaxHeight and isMaxWidth then
+    -- Fully maximized → restore
+    if spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
+      local lastPos = spoon.WinWin._lastPositions[1]
+      frame.x = lastPos.x or frame.x
+      frame.y = lastPos.y or frame.y
+      frame.w = lastPos.w or frame.w
+      frame.h = lastPos.h or frame.h
+    end
+  elseif isMaxHeight then
+    -- Max height only → add max width (true maximize)
     frame.x = screen.x
-    frame.y = screen.y
     frame.w = screen.w
+  else
+    -- Normal → max height (save original first)
+    setupWindowOperation(true)
+    flashEdgeHighlight(screen, {"up", "down"})
+    frame.y = screen.y
     frame.h = screen.h
   end
 
@@ -382,18 +387,20 @@ local function toggleCenter()
   instant(function() win:setFrame(frame) end)
 end
 
--- Cycle through half/third width aligned to edge (or restore)
+-- Cycle through half/third/middle-third/two-thirds width aligned to edge (or restore)
 local function cycleHalfThird(dir)
   local win, frame, screen = setupWindowOperation(false)  -- don't save yet
   if not win then return end
 
   local halfW = screen.w / 2
   local thirdW = screen.w / 3
+  local twoThirdW = screen.w * 2 / 3
   local tolerance = 10
 
   local atLeft = math.abs(frame.x - screen.x) < tolerance
   local atRight = math.abs((frame.x + frame.w) - (screen.x + screen.w)) < tolerance
-  local twoThirdW = screen.w * 2 / 3
+  local centerX = screen.x + (screen.w - frame.w) / 2
+  local isCentered = math.abs(frame.x - centerX) < tolerance
   local isHalf = math.abs(frame.w - halfW) < tolerance
   local isThird = math.abs(frame.w - thirdW) < tolerance
   local isTwoThird = math.abs(frame.w - twoThirdW) < tolerance
@@ -405,7 +412,11 @@ local function cycleHalfThird(dir)
       frame.w = thirdW
       frame.x = screen.x
     elseif atLeft and isThird and isFullHeight then
-      -- Third → Two-thirds
+      -- Third → Middle third
+      frame.w = thirdW
+      frame.x = screen.x + (screen.w - thirdW) / 2
+    elseif isCentered and isThird and isFullHeight then
+      -- Middle third → Two-thirds
       frame.w = twoThirdW
       frame.x = screen.x
     elseif atLeft and isTwoThird and isFullHeight then
@@ -431,7 +442,11 @@ local function cycleHalfThird(dir)
       frame.w = thirdW
       frame.x = screen.x + screen.w - frame.w
     elseif atRight and isThird and isFullHeight then
-      -- Third → Two-thirds
+      -- Third → Middle third
+      frame.w = thirdW
+      frame.x = screen.x + (screen.w - thirdW) / 2
+    elseif isCentered and isThird and isFullHeight then
+      -- Middle third → Two-thirds
       frame.w = twoThirdW
       frame.x = screen.x + screen.w - frame.w
     elseif atRight and isTwoThird and isFullHeight then
@@ -732,8 +747,8 @@ bindWithRepeat({"cmd"}, "pagedown", function() focus.focusDirection("down") end)
 -- Special bindings for shift+option (center/maximize/half-third)
 bindWithRepeat({"shift", "option"}, "home", function() cycleHalfThird("left") end)
 bindWithRepeat({"shift", "option"}, "end", function() cycleHalfThird("right") end)
-bindWithRepeat({"shift", "option"}, "pageup", toggleCenter)
-bindWithRepeat({"shift", "option"}, "pagedown", toggleMaximize)
+bindWithRepeat({"shift", "option"}, "pageup", cycleMaximize)
+bindWithRepeat({"shift", "option"}, "pagedown", toggleCenter)
 
 -- Special bindings for option+cmd (focus across screens)
 bindWithRepeat({"option", "cmd"}, "home", function() focus.focusScreen("left") end)
@@ -781,8 +796,7 @@ hs.hotkey.bind({"ctrl", "alt"}, "left", function() moveToDisplay("left") end)
 hs.hotkey.bind({"ctrl", "alt"}, "right", function() moveToDisplay("right") end)
 hs.hotkey.bind({"ctrl", "alt"}, "return", function() moveToDisplay("center") end)
 
--- Compact/expand toggles (currently unassigned, functions still available)
--- toggleCompact, toggleMaxHeight, toggleMaxWidth, toggleFullScreen
+-- Unassigned functions still available: toggleMaxHeight, toggleMaxWidth, toggleFullScreen, toggleCompact
 
 -- Show focus highlight on current window (fn+cmd+delete = forwarddelete)
 hs.hotkey.bind({"cmd"}, "forwarddelete", function()

@@ -343,7 +343,7 @@
         <div class="esc-item edge-mod"><span class="mod kc">⌃</span><span class="name">Snap to Edge</span></div>
         <div class="esc-item edge-mod"><span class="mod kc">⌃⇧</span><span class="name">Resize to Edge</span></div>
         <div class="esc-item"><span class="mod kc">⌥</span><span class="name">Shrink / Grow</span></div>
-        <div class="esc-item"><span class="mod kc">⇧⌥</span><span class="name">Layout Toggles</span></div>
+        <div class="esc-item"><span class="mod kc">⇧⌥</span><span class="name">Layout / Max / Center</span></div>
         <div class="esc-item"><span class="mod kc">⌘</span><span class="name">Focus Same</span></div>
         <div class="esc-item"><span class="mod kc">⌥⌘</span><span class="name">Focus Other</span></div>
       </div>
@@ -368,9 +368,9 @@
       </div>
       <div class="ops-group">
         <div class="ops-group-hd">Layout</div>
-        <div class="ops-pill"><span class="kc">⇧⌥</span><span class="arr">←→</span> Half / Third / ⅔</div>
-        <div class="ops-pill"><span class="kc">⇧⌥</span><span class="arr">↑</span> Center</div>
-        <div class="ops-pill"><span class="kc">⇧⌥</span><span class="arr">↓</span> Maximize</div>
+        <div class="ops-pill"><span class="kc">⇧⌥</span><span class="arr">←→</span> Half / Third / Mid / ⅔</div>
+        <div class="ops-pill"><span class="kc">⇧⌥</span><span class="arr">↑</span> Maximize</div>
+        <div class="ops-pill"><span class="kc">⇧⌥</span><span class="arr">↓</span> Center</div>
       </div>
       <div class="ops-group">
         <div class="ops-group-hd">Focus</div>
@@ -492,15 +492,17 @@
     <div class="undo-note">repeat → restore original size</div>
   </div>
 
-  <!-- Half / Third / Two-Thirds Cycle (spatial mini screens) -->
+  <!-- Half / Third / Mid-Third / Two-Thirds Cycle (spatial mini screens) -->
   <div class="card">
-    <h3>Half / Third / ⅔ Cycle</h3>
+    <h3>Half / Third / Mid / ⅔ Cycle</h3>
     <div class="seq">
       <div class="state"><div class="ms"><div class="w" style="left:15%;top:15%;width:35%;height:65%"></div></div><span class="label">Normal</span></div>
       <div class="arrow"><span class="kc">⇧⌥<span class="arr">←</span></span>→</div>
       <div class="state"><div class="ms"><div class="eg l"></div><div class="w" style="left:2px;top:2px;bottom:2px;width:calc(50% - 3px)"></div></div><span class="label">Left Half</span></div>
       <div class="arrow"><span class="kc">⇧⌥<span class="arr">←</span></span>→</div>
-      <div class="state"><div class="ms"><div class="eg l"></div><div class="w" style="left:2px;top:2px;bottom:2px;width:calc(33% - 3px)"></div></div><span class="label">Left Third</span></div>
+      <div class="state"><div class="ms"><div class="eg l"></div><div class="w" style="left:2px;top:2px;bottom:2px;width:calc(33% - 3px)"></div></div><span class="label">Left ⅓</span></div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">←</span></span>→</div>
+      <div class="state"><div class="ms"><div class="w" style="left:calc(33% + 1px);top:2px;bottom:2px;width:calc(33% - 2px)"></div></div><span class="label">Mid ⅓</span></div>
       <div class="arrow"><span class="kc">⇧⌥<span class="arr">←</span></span>→</div>
       <div class="state"><div class="ms"><div class="eg l"></div><div class="w" style="left:2px;top:2px;bottom:2px;width:calc(66% - 3px)"></div></div><span class="label">Left ⅔</span></div>
       <div class="arrow"><span class="kc">⇧⌥<span class="arr">←</span></span>→</div>
@@ -511,7 +513,9 @@
       <div class="arrow"><span class="kc">⇧⌥<span class="arr">→</span></span>→</div>
       <div class="state"><div class="ms"><div class="eg r"></div><div class="w" style="right:2px;top:2px;bottom:2px;width:calc(50% - 3px)"></div></div><span class="label">Right Half</span></div>
       <div class="arrow"><span class="kc">⇧⌥<span class="arr">→</span></span>→</div>
-      <div class="state"><div class="ms"><div class="eg r"></div><div class="w" style="right:2px;top:2px;bottom:2px;width:calc(33% - 3px)"></div></div><span class="label">Right Third</span></div>
+      <div class="state"><div class="ms"><div class="eg r"></div><div class="w" style="right:2px;top:2px;bottom:2px;width:calc(33% - 3px)"></div></div><span class="label">Right ⅓</span></div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">→</span></span>→</div>
+      <div class="state"><div class="ms"><div class="w" style="left:calc(33% + 1px);top:2px;bottom:2px;width:calc(33% - 2px)"></div></div><span class="label">Mid ⅓</span></div>
       <div class="arrow"><span class="kc">⇧⌥<span class="arr">→</span></span>→</div>
       <div class="state"><div class="ms"><div class="eg r"></div><div class="w" style="right:2px;top:2px;bottom:2px;width:calc(66% - 3px)"></div></div><span class="label">Right ⅔</span></div>
       <div class="arrow"><span class="kc">⇧⌥<span class="arr">→</span></span>→</div>
@@ -524,23 +528,25 @@
     <h3>Center Toggle</h3>
     <div class="seq">
       <div class="state"><div class="ms"><div class="w" style="left:8%;top:10%;width:40%;height:55%"></div></div><span class="label">Normal</span></div>
-      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↑</span></span>→</div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↓</span></span>→</div>
       <div class="state"><div class="ms"><div class="w" style="left:8%;top:50%;transform:translateY(-50%);width:40%;height:55%"></div></div><span class="label">Centered V</span></div>
-      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↑</span></span>→</div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↓</span></span>→</div>
       <div class="state"><div class="ms"><div class="w" style="left:50%;top:50%;transform:translate(-50%,-50%);width:40%;height:55%"></div></div><span class="label">Centered V+H</span></div>
-      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↑</span></span>→</div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↓</span></span>→</div>
       <div class="state"><span class="label" style="color:var(--accent)">back</span></div>
     </div>
   </div>
 
-  <!-- Maximize Toggle (spatial mini screens) -->
+  <!-- Maximize Cycle (spatial mini screens) -->
   <div class="card">
-    <h3>Maximize Toggle</h3>
+    <h3>Maximize Cycle</h3>
     <div class="seq">
       <div class="state"><div class="ms"><div class="w" style="left:12%;top:15%;width:45%;height:55%"></div></div><span class="label">Normal</span></div>
-      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↓</span></span>→</div>
-      <div class="state"><div class="ms"><div class="eg t"></div><div class="eg b"></div><div class="eg l"></div><div class="eg r"></div><div class="w" style="left:2px;top:2px;right:2px;bottom:2px"></div></div><span class="label">Maximized</span></div>
-      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↓</span></span>→</div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↑</span></span>→</div>
+      <div class="state"><div class="ms"><div class="eg t"></div><div class="eg b"></div><div class="w" style="left:12%;top:2px;width:45%;bottom:2px"></div></div><span class="label">Max Height</span></div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↑</span></span>→</div>
+      <div class="state"><div class="ms"><div class="eg t"></div><div class="eg b"></div><div class="eg l"></div><div class="eg r"></div><div class="w" style="left:2px;top:2px;right:2px;bottom:2px"></div></div><span class="label">Full Max</span></div>
+      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↑</span></span>→</div>
       <div class="state"><span class="label" style="color:var(--accent)">back</span></div>
     </div>
   </div>
@@ -700,11 +706,10 @@
     <div class="undo-note">fn+⇧ hold, grab position determines mode</div>
   </div>
 
-  <!-- Bear Note Lifecycle (self-exemplifying sequence) -->
+  <!-- Bear Note Toggle (simple 3-state cycle) -->
   <div class="card">
-    <h3>Bear Note Lifecycle</h3>
+    <h3>Bear Note Toggle</h3>
     <div class="seq">
-      <!-- Closed: same gray window, cursor visible, no Bear note -->
       <div class="state">
         <div class="ms">
           <div class="wg" style="left:25%;top:8%;width:48%;height:52%"></div>
@@ -713,27 +718,39 @@
         <span class="label">Closed</span>
       </div>
       <div class="arrow"><span class="kc">◆ key</span>→</div>
-      <!-- Open behind: Bear appears but behind gray window -->
+      <div class="state">
+        <div class="ms">
+          <div class="wg" style="left:25%;top:8%;width:48%;height:52%"></div>
+          <div class="w" style="left:5%;top:22%;width:48%;height:62%"></div>
+        </div>
+        <span class="label">Focused</span>
+      </div>
+      <div class="arrow"><span class="kc">◆ key</span>→</div>
+      <div class="state">
+        <div class="ms">
+          <div class="w" style="left:5%;top:22%;width:48%;height:62%"></div>
+          <div class="wg" style="left:25%;top:8%;width:48%;height:52%"></div>
+        </div>
+        <span class="label">Behind</span>
+      </div>
+      <div class="arrow"><span class="kc">◆ key</span>→</div>
+      <div class="state"><span class="label" style="color:var(--accent)">focused</span></div>
+    </div>
+  </div>
+
+  <!-- Bear Summon to Cursor -->
+  <div class="card">
+    <h3>Bear Summon</h3>
+    <div class="seq">
       <div class="state">
         <div class="ms">
           <div class="w" style="left:5%;top:22%;width:48%;height:62%"></div>
           <div class="wg" style="left:25%;top:8%;width:48%;height:52%"></div>
           <div class="cur" style="left:60%;top:56%"></div>
         </div>
-        <span class="label">Open behind</span>
+        <span class="label">Open</span>
       </div>
-      <div class="arrow"><span class="kc">◆ key</span>→</div>
-      <!-- Raised: z-order flipped, Bear on top -->
-      <div class="state">
-        <div class="ms">
-          <div class="wg" style="left:25%;top:8%;width:48%;height:52%"></div>
-          <div class="w" style="left:5%;top:22%;width:48%;height:62%"></div>
-          <div class="cur" style="left:60%;top:56%"></div>
-        </div>
-        <span class="label">Raised</span>
-      </div>
-      <div class="arrow"><span class="kc">◆ key</span>→</div>
-      <!-- Summoned: Bear jumps to cursor, gray window stays put -->
+      <div class="arrow"><span class="kc">R⇧◆</span>→</div>
       <div class="state">
         <div class="ms">
           <div class="wg" style="left:25%;top:8%;width:48%;height:52%"></div>
@@ -742,9 +759,10 @@
         </div>
         <span class="label">At cursor</span>
       </div>
-      <div class="arrow"><span class="kc">◆ key</span>→</div>
-      <div class="state"><span class="label">closed</span></div>
+      <div class="arrow"><span class="kc">R⇧◆</span>→</div>
+      <div class="state"><span class="label" style="color:var(--accent)">back + refocus</span></div>
     </div>
+    <div class="undo-note">right-shift + hyperkey · z-order fully restored</div>
   </div>
 
   <!-- Bear Note Bindings (grouped HTML) -->

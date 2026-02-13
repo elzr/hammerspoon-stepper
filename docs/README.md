@@ -36,8 +36,9 @@ All bindings use **fn + modifier + arrow keys** (Home/End/PageUp/PageDown):
 | **option** | Shrink/unshrink | fn + option + arrows |
 | **cmd** | Focus within current screen | fn + cmd + arrows |
 | **option+cmd** | Focus across screens | fn + option + cmd + arrows |
-| **shift+option** | Center/maximize toggle | fn + shift + option + up/down |
-| **shift+option** | Half/third/two-thirds cycle | fn + shift + option + left/right |
+| **shift+option** | Maximize cycle | fn + shift + option + up |
+| **shift+option** | Center toggle | fn + shift + option + down |
+| **shift+option** | Half/third/mid-third/two-thirds cycle | fn + shift + option + left/right |
 
 ## Step Resize Behavior (fn + shift + arrows)
 
@@ -97,34 +98,29 @@ These are direct arrow keys (no fn needed). The window's offset from the screen 
 
 **Repeat to undo**: pressing the same combo again within 1 hour moves the window back to its original screen, position, and size. A different combo starts a new move (overwriting the undo memory for that window).
 
-### Center Toggle (fn + shift + option + up)
+### Maximize Cycle (fn + shift + option + up)
+Progressive maximize:
+1. First press: maximize height (keep width and horizontal position)
+2. Second press: maximize width too (true full-screen maximize)
+3. Third press: restore previous size and position
+
+### Center Toggle (fn + shift + option + down)
 Progressive centering:
 1. First press: center vertically
 2. Second press: center horizontally
 3. Third press: restore previous position
 
-### Maximize Toggle (fn + shift + option + down)
-- Press to maximize window to fill screen
-- Press again to restore previous size and position
-
 ### Half/Third Cycle (fn + shift + option + left/right)
 Cycle through edge-aligned layouts:
 1. First press: half-width, full-height, aligned to that edge
 2. Second press: third-width, full-height, aligned to that edge
-3. Third press: two-thirds-width, full-height, aligned to that edge
-4. Fourth press: restore previous size and position
+3. Third press: middle third (centered, full-height)
+4. Fourth press: two-thirds-width, full-height, aligned to that edge
+5. Fifth press: restore previous size and position
 
 ## Unassigned (Available Functions)
 
 The following operations are implemented but not currently bound to keys:
-
-### Compact Mode
-Shrink window to a small size and dock it at the bottom of the screen.
-- Works like a minimized dock: windows line up left-to-right at the screen bottom
-- Each new compact window appears to the right of existing ones
-- Wraps to the row above when the bottom row is full
-- Press again to restore original size and position
-- App-specific minimum sizes are respected (see `minShrinkSize` in config)
 
 ### Max Height
 Expand window to full screen height while keeping width and horizontal position.
@@ -134,6 +130,14 @@ Expand window to full screen height while keeping width and horizontal position.
 Expand window to full screen width while keeping height and vertical position.
 **Reversible**: Press again to restore previous width.
 
+### Compact Mode
+Shrink window to a small size and dock it at the bottom of the screen.
+- Works like a minimized dock: windows line up left-to-right at the screen bottom
+- Each new compact window appears to the right of existing ones
+- Wraps to the row above when the bottom row is full
+- Press again to restore original size and position
+- App-specific minimum sizes are respected (see `minShrinkSize` in config)
+
 ### Native Fullscreen
 Toggle macOS native fullscreen mode (with the green button animation).
 
@@ -142,18 +146,23 @@ Flash a border around the currently focused window. Useful for locating which wi
 
 ## Bear Note HUD
 
-Open Bear notes like a HUD: a keyboard shortcut opens a specific note right where you left off, with caret and scroll position preserved. Press again to summon the note to your cursor. Press again to send it back.
+Open Bear notes like a HUD: a keyboard shortcut opens a specific note right where you left off, with caret and scroll position preserved.
 
 ### Note Hotkeys (hyperkey + letter)
 
-Configured in `bear-notes.json`. Each hotkey cycles through four states:
+Configured in `bear-notes.json`. Each hotkey toggles through three states:
 
 | Press | State | Action |
 |-------|-------|--------|
 | 1st | Not open | Opens note in Bear, restores caret/scroll position |
 | 2nd | Open, not focused | Raises + focuses the note window |
-| 3rd | Focused | Centers the window on the mouse cursor |
-| 4th | Summoned | Returns to original position, refocuses previous app |
+| 3rd | Focused | Unfocuses, returns to previous app |
+
+### Summon to Cursor (right-shift + hyperkey + letter)
+
+Hold the **right shift** key while pressing the hyperkey combo to summon the note window to your mouse cursor. Press again (with right-shift) to return it to its original position and refocus the previous app. Z-order is fully restored.
+
+Summon works whether the note is open or not — if closed, it opens and summons in one step.
 
 Default bindings (hyperkey = ctrl+alt+shift+cmd):
 

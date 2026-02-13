@@ -24,9 +24,9 @@ All fn combos use fn+arrow which Hammerspoon sees as Home/End/PageUp/PageDown.
 | ⌃ | ↔↕ | Snap to screen edge (repeat undoes) |
 | ⌃⇧ | ↔↕ | Resize to screen edge (repeat undoes) |
 | ⌥ | ↔↕ | Shrink/grow toggle |
-| ⇧⌥ | ↔ | Half → third → two-thirds → restore cycle |
-| ⇧⌥ | ↑ | Center toggle (V → H → restore) |
-| ⇧⌥ | ↓ | Maximize toggle |
+| ⇧⌥ | ↔ | Half → third → mid third → two-thirds → restore cycle |
+| ⇧⌥ | ↑ | Maximize cycle (height → full → restore) |
+| ⇧⌥ | ↓ | Center toggle (V → H → restore) |
 
 ## Focus (⌘/⌥⌘ + ↔↕)
 
@@ -96,4 +96,5 @@ Position preserved. Oversized windows shrink to fit (restored when moved back).
 | S | _topsight 2026 |
 | I | _index 2026 |
 
-Cycle: open → raise → summon to cursor → send back.
+Toggle: open → raise → unfocus (z-order restored).
+Summon (right-shift + ◆ letter): summon to cursor → send back + refocus.
