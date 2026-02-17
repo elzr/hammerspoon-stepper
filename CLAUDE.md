@@ -15,7 +15,7 @@ stepper/
 │   ├── screenswitch.lua  # Move window to specific display by position
 │   └── bear-hud.lua      # Bear note HUD with caret/scroll persistence
 ├── data/
-│   ├── bear-notes.json   # Note hotkey configuration
+│   ├── bear-notes.jsonc   # Note hotkey configuration
 │   └── bear-hud-positions.json  # Runtime caret/scroll positions (not tracked)
 ├── docs/                 # Architecture notes and decision records
 ├── CLAUDE.md             # This file

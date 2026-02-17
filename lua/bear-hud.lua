@@ -13,6 +13,7 @@ local M = {}
 -- Module state
 local rightOptionHeld = false
 local rightShiftHeld = false
+local rightCmdHeld = false
 local raltWatcher = nil
 local positions = {}       -- {key = {caret=N, scroll=F}} where key is id or title
 local titleToId = {}        -- {windowTitle = noteId} learned from URL handler
@@ -812,21 +813,24 @@ function M.init(projectRoot, focus)
     saveTimer = hs.timer.doEvery(1800, guardedSave)
   end
 
-  -- Track physical right-option (0x40) and right-shift (0x04) via device-specific flag bits
+  -- Track physical right-option (0x40), right-shift (0x04), right-cmd (0x10) via device-specific flag bits
   raltWatcher = hs.eventtap.new({hs.eventtap.event.types.flagsChanged}, function(event)
     local flags = event:rawFlags()
     rightOptionHeld = (flags & 0x40) ~= 0
     rightShiftHeld = (flags & 0x04) ~= 0
+    rightCmdHeld = (flags & 0x10) ~= 0
     return false
   end)
   raltWatcher:start()
 
-  -- Load note hotkeys from bear-notes.json
-  local notesFile = projectRoot .. "data/bear-notes.json"
+  -- Load note hotkeys from bear-notes.jsonc
+  local notesFile = projectRoot .. "data/bear-notes.jsonc"
   local nf = io.open(notesFile, "r")
   if nf then
     local content = nf:read("*a")
     nf:close()
+    -- Strip // line comments for JSONC support
+    content = content:gsub("//[^\n]*", "")
     local config = hs.json.decode(content)
     if config then
       local vars = config.vars or {}
@@ -837,23 +841,34 @@ function M.init(projectRoot, focus)
         for varName, varValue in pairs(vars) do
           title = title:gsub("%${" .. varName .. "}", varValue)
         end
-        -- Expand template vars in pastTitle (if present)
+        -- Expand template vars in pastTitle and nextTitle (if present)
         local pastTitle = note.pastTitle
         if pastTitle then
           for varName, varValue in pairs(vars) do
             pastTitle = pastTitle:gsub("%${" .. varName .. "}", varValue)
           end
         end
+        local nextTitle = note.nextTitle
+        if nextTitle then
+          for varName, varValue in pairs(vars) do
+            nextTitle = nextTitle:gsub("%${" .. varName .. "}", varValue)
+          end
+        end
         hs.hotkey.bind(mods, note.key, function()
-          local t = (rightOptionHeld and pastTitle) and pastTitle or title
+          local t = title
+          if rightCmdHeld and pastTitle then
+            t = pastTitle
+          elseif rightOptionHeld and nextTitle then
+            t = nextTitle
+          end
           if rightShiftHeld then
             handleNoteSummon(t)
           else
             handleNoteHotkey(t)
           end
         end)
-        if pastTitle then
-          print(string.format("[bear-hud] Bound %s → '%s' (past: '%s')", note.key, title, pastTitle))
+        if pastTitle or nextTitle then
+          print(string.format("[bear-hud] Bound %s → '%s' (past: '%s', next: '%s')", note.key, title, pastTitle or "—", nextTitle or "—"))
         else
           print(string.format("[bear-hud] Bound %s → '%s'", note.key, title))
         end
@@ -884,7 +899,7 @@ function M.init(projectRoot, focus)
       end
     end
   else
-    print("[bear-hud] No bear-notes.json found, skipping hotkeys")
+    print("[bear-hud] No bear-notes.jsonc found, skipping hotkeys")
   end
 
   print("[bear-hud] Initialized")

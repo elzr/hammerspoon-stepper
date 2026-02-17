@@ -101,4 +101,6 @@ Position preserved. Oversized windows shrink to fit (restored when moved back).
 | Z | live window (set with R⌥) |
 
 Toggle: open → raise → minimize (macOS auto-focuses previous window).
-Summon (right-shift + ◆ letter): summon to cursor → return + minimize.
+Summon (R⇧ + ◆ letter): summon to cursor → return + minimize.
+Past week (R⌘ + ◆ D/W/T): open previous week's note.
+Next week (R⌥ + ◆ D/W/T): open next week's note.

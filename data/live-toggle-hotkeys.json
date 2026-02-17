@@ -2,5 +2,9 @@
   "X" : {
     "title" : "_meet Nao 16feb2026",
     "bundleID" : "net.shinyfrog.bear"
+  },
+  "Z" : {
+    "title" : "_hci feb2026",
+    "bundleID" : "net.shinyfrog.bear"
   }
 }

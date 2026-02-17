@@ -150,7 +150,7 @@ Open Bear notes like a HUD: a keyboard shortcut opens a specific note right wher
 
 ### Note Hotkeys (hyperkey + letter)
 
-Configured in `bear-notes.json`. Each hotkey toggles through three states:
+Configured in `bear-notes.jsonc`. Each hotkey toggles through three states:
 
 | Press | State | Action |
 |-------|-------|--------|
@@ -176,9 +176,13 @@ Default bindings (hyperkey = ctrl+alt+shift+cmd):
 | S | `_topsight 2026` |
 | I | `_index 2026` |
 
-Weekly note titles use template variables (`weekNum`, `weekDays`) defined in `bear-notes.json`.
+Weekly note titles use template variables (`weekNum`, `weekDays`) defined in `bear-notes.jsonc`.
 
-**Past week**: Hold the **right option** key while pressing hyper+D/W/T to open the previous week's note instead. Uses `pastWeekNum`/`pastWeekDays` vars from `bear-notes.json`. Notes without a `pastTitle` (N, R, S, I) are unaffected.
+**Past week**: Hold the **right command** key while pressing hyper+D/W/T to open the previous week's note instead. Uses `pastWeekNum`/`pastWeekDays` vars.
+
+**Next week**: Hold the **right option** key while pressing hyper+D/W/T to open the next week's note. Uses `nextWeekNum`/`nextWeekDays` vars.
+
+Notes without a `pastTitle`/`nextTitle` (N, R, S, I, M) are unaffected by these modifiers.
 
 ### Live Window Hotkeys (hyper+X/Q/A/Z)
 
