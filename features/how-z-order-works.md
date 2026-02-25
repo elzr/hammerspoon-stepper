@@ -136,3 +136,25 @@ The approaches below document why z-order restore was abandoned. They're preserv
 5. **Deferring doesn't help** — beeps persist even after modifiers are released
 
 The lesson: per-window minimize sidesteps all of this by letting macOS handle focus transfer natively.
+
+## Gotcha: "Assign to All Desktops" Makes Windows Pseudo-Always-On-Top
+
+### What it is
+
+In Mission Control, right-clicking a Dock icon → **Options → Assign To → All Desktops** pins the app's windows to appear on every space. Internally macOS sets the `NSWindowCollectionBehaviorCanJoinAllSpaces` flag on those windows.
+
+### The symptom
+
+Windows from "All Desktops" apps render **above** windows from apps assigned to a specific desktop or "None." No matter how many times you click another window or call `win:focus()`, the "All Desktops" windows stay on top. The only escape is to hide the offending app (`Cmd-H`) or toggle the setting off.
+
+### Why it happens
+
+macOS implements space-pinned windows in a separate window layer tier. Within a given space, the window server places "All Desktops" windows above single-space windows when ordering is resolved. This is not the same as `NSFloatingWindowLevel` (the true always-on-top used by system overlays), but it has the same practical effect for user-level windows.
+
+### The fix
+
+Right-click the app in the Dock → **Options → Assign To → None** (or a specific desktop). The layering is immediately restored to normal.
+
+### Why this comes up
+
+`layout.gather()` consolidates windows from external displays onto the built-in screen after a disconnect, which is the same workflow that tempts users to set apps to "All Desktops" as a workaround for cross-space scattering. Use `gather()` instead — it solves the problem without the layering side-effect.

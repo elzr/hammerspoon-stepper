@@ -1,12 +1,15 @@
 {
   "vars": {
-    "weekNum": "8",
-    "weekDays": "16-22feb2026",
-    "pastWeekNum": "7",              // R⌘ (right-cmd)
-    "pastWeekDays": "9-15feb2026",   // R⌘ (right-cmd)
-    "nextWeekNum": "9",              // R⌥ (right-option)
-    "nextWeekDays": "23feb-1mar2026" // R⌥ (right-option)
+    "weekNum": "9",                   // current
+    "weekDays": "23feb-1mar2026",
+
+    "pastWeekNum": "8",               // R⌘ (right-cmd)
+    "pastWeekDays": "16-22feb2026",   // R⌘ (right-cmd)
+
+    "nextWeekNum": "10",              // R⌥ (right-option)
+    "nextWeekDays": "2-8mar2026"      // R⌥ (right-option)
   },
+  // run ~/bin/hs-reload.sh to reload after editing
   "mods": ["ctrl", "alt", "shift", "cmd"],
   "notes": [
     {"key": "N", "action": "open-bear-note", "title": "_mem NOW"},
@@ -18,5 +21,5 @@
     {"key": "M", "action": "open-bear-note", "title": "_money 2026"},
     {"key": "I", "action": "open-bear-note", "title": "_index 2026"}
   ],
-  "reservedKeys": ["X", "Q", "A", "Z", "— live window toggle slots, bound in bear-hud.lua"]
+  "reservedKeys": ["X", "Q", "A", "Z", "— live window toggle slots, bound in bear-hud.lua"] // set with R⌥
 }

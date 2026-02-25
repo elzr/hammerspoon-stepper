@@ -1,7 +1,11 @@
 {
-  "X" : {
-    "title" : "_meet Nao 16feb2026",
+  "Q" : {
+    "title" : "_budget 2026",
     "bundleID" : "net.shinyfrog.bear"
+  },
+  "A" : {
+    "title" : "mas2 | Evaluate: Map Libraries",
+    "bundleID" : "net.kovidgoyal.kitty"
   },
   "Z" : {
     "title" : "_hci feb2026",

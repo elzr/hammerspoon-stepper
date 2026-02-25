@@ -7,6 +7,7 @@ local focus = dofile(scriptPath .. "focus.lua")
 local mousemove = dofile(scriptPath .. "mousemove.lua")
 local screenswitch = dofile(scriptPath .. "screenswitch.lua")
 bear_hud = dofile(scriptPath .. "bear-hud.lua")
+layout = dofile(scriptPath .. "layout.lua")
 
 -- Clean up any orphaned focus highlights from previous session
 focus.clearHighlight()
