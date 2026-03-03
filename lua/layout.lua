@@ -12,15 +12,21 @@ local M = {}
 
 local scriptPath = debug.getinfo(1, "S").source:match("@(.*/)")
 local dataFile = scriptPath .. "../data/window-layout.json"
+local lunarSyncScript = scriptPath .. "../features/sync-display-names-in-Lunar/lunar-sync-names.py"
 
 local TARGET_DISPLAY_COUNT = 5
 local DEBOUNCE_DELAY = 2          -- seconds (screens appear sequentially)
 local PERIODIC_SAVE_INTERVAL = 300  -- 5 minutes
+local LUNAR_SYNC_DELAY = 3         -- seconds after screen stabilization
 
 local screenWatcher = nil
 local debounceTimer = nil
 local periodicTimer = nil
+local lunarSyncTimer = nil
 local lastScreenCount = 0
+
+-- screenswitch module reference (set during init)
+local screenswitch = nil
 
 -- ---------------------------------------------------------------------------
 -- Helpers
@@ -65,6 +71,78 @@ local function showRestoreHint()
 end
 
 -- ---------------------------------------------------------------------------
+-- Lunar display name sync
+-- ---------------------------------------------------------------------------
+-- Position names displayed in Lunar's UI (matches user's existing naming)
+local positionNames = {
+  bottom = "↓Bottom Center",
+  center = "⊙Middle Center",
+  top    = "↑Top Center",
+  left   = "←Left",
+  right  = "Right→",
+}
+
+local function syncLunarNames()
+  if not screenswitch then
+    print("[layout.lunar] screenswitch not available, skipping sync")
+    return
+  end
+
+  local map = screenswitch.buildScreenMap()
+  local uuidToName = {}
+
+  for position, screen in pairs(map) do
+    local uuid = screen:getUUID()
+    local name = positionNames[position]
+    if uuid and name then
+      uuidToName[uuid] = name
+    end
+  end
+
+  if not next(uuidToName) then
+    print("[layout.lunar] No screens mapped, skipping sync")
+    return
+  end
+
+  local jsonArg = hs.json.encode(uuidToName)
+  -- Escape single quotes in JSON for shell
+  jsonArg = jsonArg:gsub("'", "'\\''")
+
+  -- Quit Lunar, update plist, relaunch (only if names changed)
+  local cmd = string.format(
+    "python3 '%s' '%s'\n" ..
+    "rc=$?\n" ..
+    "if [ $rc -eq 0 ]; then\n" ..
+    "  osascript -e 'tell application \"Lunar\" to quit' 2>/dev/null\n" ..
+    "  sleep 2\n" ..
+    "  open -a Lunar\n" ..
+    "  echo 'RESTARTED'\n" ..
+    "fi\n" ..
+    "exit $rc",
+    lunarSyncScript, jsonArg
+  )
+
+  hs.task.new("/bin/bash", function(exitCode, stdout, stderr)
+    if stdout and #stdout > 0 then
+      for line in stdout:gmatch("[^\n]+") do
+        print("[layout.lunar] " .. line)
+      end
+    end
+    if exitCode == 0 then
+      print("[layout.lunar] Lunar display names synced and relaunched")
+    elseif exitCode == 1 then
+      print("[layout.lunar] Names already correct")
+    else
+      print("[layout.lunar] Error: " .. tostring(stderr))
+    end
+  end, {"-c", cmd}):start()
+end
+
+function M.syncLunarNames()
+  syncLunarNames()
+end
+
+-- ---------------------------------------------------------------------------
 -- M.save()
 -- ---------------------------------------------------------------------------
 
@@ -95,6 +173,11 @@ function M.save()
     })
 
     ::continue::
+  end
+
+  if #entries == 0 then
+    print("[layout.save] Skipping save — 0 windows found (display may still be waking)")
+    return
   end
 
   local json = hs.json.encode(entries, true)
@@ -347,6 +430,9 @@ local function onScreenChange()
       -- Transitioning TO 5 displays
       showRestoreHint()
       startPeriodicSave()
+      -- Sync Lunar display names after a short delay for Lunar to detect screens
+      if lunarSyncTimer then lunarSyncTimer:stop() end
+      lunarSyncTimer = hs.timer.doAfter(LUNAR_SYNC_DELAY, syncLunarNames)
     elseif count ~= TARGET_DISPLAY_COUNT and lastScreenCount == TARGET_DISPLAY_COUNT then
       -- Transitioning FROM 5 displays
       stopPeriodicSave()
@@ -370,7 +456,10 @@ end
 -- M.init() — start screen watcher and periodic save if already at 5
 -- ---------------------------------------------------------------------------
 
-function M.init()
+function M.init(opts)
+  opts = opts or {}
+  screenswitch = opts.screenswitch
+
   lastScreenCount = #hs.screen.allScreens()
 
   screenWatcher = hs.screen.watcher.new(onScreenChange)

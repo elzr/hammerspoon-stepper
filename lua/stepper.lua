@@ -823,8 +823,8 @@ mousemove.init({
 -- Initialize Bear HUD (note hotkeys + caret position persistence)
 bear_hud.init(projectRoot, focus)
 
--- Initialize layout auto-save and screen watcher
-layout.init()
+-- Initialize layout auto-save, screen watcher, and Lunar name sync
+layout.init({screenswitch = screenswitch})
 
 -- Restore layout hotkey: fn+ctrl+alt+delete (in the ⌃⌥ move-to-display family)
 hs.hotkey.bind({"ctrl", "alt"}, "forwarddelete", layout.restore)
