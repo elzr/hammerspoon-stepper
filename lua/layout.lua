@@ -1,9 +1,11 @@
 -- =============================================================================
 -- Window layout save / restore / gather
 -- =============================================================================
--- layout.save()    — snapshot all visible window positions to data/window-layout.json
--- layout.restore() — restore windows to saved positions
--- layout.gather()  — consolidate all windows into one space on the built-in display
+-- layout.save()          — snapshot all visible window positions (+ rotate 1m backup ring)
+-- layout.restore()       — restore from latest autosave
+-- layout.manualSave()    — pinned save (never overwritten by autosave)
+-- layout.manualRestore() — restore from pinned save (fallback to autosave)
+-- layout.gather()        — consolidate all windows into one space on the built-in display
 --
 -- Designed for a 5-display setup with 4 identical LG HDR 4K monitors (no serials).
 -- Screens are identified by spatial position name (via screenswitch.buildScreenMap),
@@ -13,21 +15,32 @@ local M = {}
 
 local scriptPath = debug.getinfo(1, "S").source:match("@(.*/)")
 local dataFile = scriptPath .. "../data/window-layout.json"
+local manualFile = scriptPath .. "../data/window-layout-manual.json"
+local backupDir = scriptPath .. "../data/layout-backups/"
 local lunarSyncScript = scriptPath .. "../features/sync-display-names-in-Lunar/lunar-sync-names.py"
 
 local TARGET_DISPLAY_COUNT = 5
 local DEBOUNCE_DELAY = 2          -- seconds (screens appear sequentially)
 local PERIODIC_SAVE_INTERVAL = 60   -- 1 minute
+local PERIODIC_10M_INTERVAL = 600   -- 10 minutes
 local LUNAR_SYNC_DELAY = 3         -- seconds after screen stabilization
+
+local RING_1M_SIZE = 10             -- keep 10 one-minute backups
+local RING_10M_SIZE = 10            -- keep 10 ten-minute backups
 
 local screenWatcher = nil
 local debounceTimer = nil
 local periodicTimer = nil
+local periodic10mTimer = nil
 local lunarSyncTimer = nil
 local lastScreenCount = 0
 
 local SAVE_TRIGGER_DELAY = 3        -- seconds after last triggered operation
 local LOG_RETENTION = 600            -- 10 minutes of log entries
+
+-- Ring buffer indices (1-based, wrap around)
+local ring1mIndex = 0
+local ring10mIndex = 0
 
 -- screenswitch module reference (set during init)
 local screenswitch = nil
@@ -125,7 +138,45 @@ local function findScreen(entry)
 end
 
 local function showRestoreHint()
-  print("[layout] Restore available — fn+ctrl+alt+delete to restore layout")
+  print("[layout] Restore available — fn+ctrl+alt+shift+delete to restore layout")
+end
+
+-- ---------------------------------------------------------------------------
+-- Backup ring rotation
+-- ---------------------------------------------------------------------------
+
+local function ensureBackupDir()
+  os.execute("mkdir -p '" .. backupDir .. "'")
+end
+
+local function copyFile(src, dst)
+  local fh = io.open(src, "r")
+  if not fh then return false end
+  local data = fh:read("*a")
+  fh:close()
+  local out = io.open(dst, "w")
+  if not out then return false end
+  out:write(data)
+  out:close()
+  return true
+end
+
+local function rotateRing1m()
+  ensureBackupDir()
+  ring1mIndex = (ring1mIndex % RING_1M_SIZE) + 1
+  local dst = backupDir .. string.format("layout-1m-%02d.json", ring1mIndex)
+  if copyFile(dataFile, dst) then
+    logEvent("backup-1m", string.format("slot %d/%d", ring1mIndex, RING_1M_SIZE))
+  end
+end
+
+local function rotateRing10m()
+  ensureBackupDir()
+  ring10mIndex = (ring10mIndex % RING_10M_SIZE) + 1
+  local dst = backupDir .. string.format("layout-10m-%02d.json", ring10mIndex)
+  if copyFile(dataFile, dst) then
+    logEvent("backup-10m", string.format("slot %d/%d", ring10mIndex, RING_10M_SIZE))
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -260,6 +311,9 @@ function M.save()
 
   logEvent("save", string.format("%d windows; Bear: %s", #entries, table.concat(summary, ", ")))
   print(string.format("[layout.save] Saved %d windows to %s", #entries, dataFile))
+
+  -- Rotate into 1-minute backup ring
+  rotateRing1m()
 end
 
 -- ---------------------------------------------------------------------------
@@ -274,15 +328,62 @@ function M.restore()
   end
   local json = fh:read("*a")
   fh:close()
+  M.restoreFromJSON(json, dataFile)
+end
 
+-- ---------------------------------------------------------------------------
+-- M.manualSave() — pinned save, never overwritten by autosave
+-- ---------------------------------------------------------------------------
+
+function M.manualSave()
+  M.save()  -- writes to main dataFile + 1m ring as usual
+  if copyFile(dataFile, manualFile) then
+    logEvent("manual-save", manualFile)
+    print("[layout] Manual layout saved (pinned)")
+    hs.alert.show("Layout saved")
+  else
+    print("[layout] ERROR: could not write manual save")
+  end
+end
+
+-- ---------------------------------------------------------------------------
+-- M.manualRestore() — restore from pinned save, fallback to latest autosave
+-- ---------------------------------------------------------------------------
+
+function M.manualRestore()
+  -- Try manual save first
+  local fh = io.open(manualFile, "r")
+  local source = manualFile
+  if not fh then
+    -- Fallback to latest autosave
+    fh = io.open(dataFile, "r")
+    source = dataFile
+    if not fh then
+      print("[layout.restore] No saved layout found (checked manual + auto)")
+      hs.alert.show("No saved layout found")
+      return
+    end
+  end
+  local json = fh:read("*a")
+  fh:close()
+
+  logEvent("manual-restore", "from " .. source)
+  M.restoreFromJSON(json, source)
+end
+
+-- ---------------------------------------------------------------------------
+-- M.restoreFromJSON(json, label) — shared restore logic
+-- ---------------------------------------------------------------------------
+
+function M.restoreFromJSON(json, label)
   local ok, entries = pcall(hs.json.decode, json)
   if not ok or type(entries) ~= "table" then
-    print("[layout.restore] ERROR: could not parse layout JSON")
+    print("[layout.restore] ERROR: could not parse layout JSON from " .. (label or "?"))
     return
   end
 
-  -- Build per-app window list (same order as hs.window.allWindows, for index fallback)
-  local appWindows = {}  -- appName -> { win, ... }
+  -- Build per-app window list
+  local appWindows = {}
   for _, win in ipairs(hs.window.allWindows()) do
     local app = win:application()
     if app then
@@ -292,15 +393,11 @@ function M.restore()
     end
   end
 
-  -- Track which windows have been matched (to avoid double-matching)
-  local matched = {}  -- winID -> true
-
-  -- Match each saved entry to a live window
-  local pairs_list = {}  -- { win, entry } for matched windows
+  local matched = {}
+  local pairs_list = {}
 
   for idx, entry in ipairs(entries) do
     local candidates = appWindows[entry.app] or {}
-
     local found = nil
     local matchTier = nil
 
@@ -325,7 +422,7 @@ function M.restore()
       end
     end
 
-    -- Tier 3: index fallback (nth unmatched window for this app)
+    -- Tier 3: index fallback
     if not found then
       for _, win in ipairs(candidates) do
         if not matched[win:id()] then
@@ -347,10 +444,8 @@ function M.restore()
   -- Phase 1: restore frames
   local savedCount = 0
   local skippedCount = #entries - #pairs_list
-
   local origDuration = hs.window.animationDuration
   hs.window.animationDuration = 0
-
   local restoreDetails = {}
 
   for _, p in ipairs(pairs_list) do
@@ -361,7 +456,6 @@ function M.restore()
 
     if matchType == "exact" or matchType == "position" then
       targetFrame = entry.frame
-      -- If position matched but origins differ, use relative coordinates
       local sf_saved = entry.screenFrame
       if math.abs(sf.x - sf_saved.x) > 2 or math.abs(sf.y - sf_saved.y) > 2 then
         local rel = entry.frameRel
@@ -374,7 +468,6 @@ function M.restore()
         matchType = matchType .. "+rel"
       end
     else
-      -- Scale from relative coordinates onto the found screen
       local rel = entry.frameRel
       targetFrame = {
         x = math.floor(sf.x + rel.x * sf.w + 0.5),
@@ -384,7 +477,6 @@ function M.restore()
       }
     end
 
-    -- Log Bear windows in detail (most likely to have issues)
     if entry.app == "Bear" then
       table.insert(restoreDetails, string.format(
         "%s: saved@%s → screen:%s (win-match:%s, scr-match:%s) %dx%d",
@@ -404,11 +496,11 @@ function M.restore()
     pairs_list[i].win:focus()
   end
 
-  logEvent("restore", string.format("%d restored, %d skipped", savedCount, skippedCount))
+  logEvent("restore", string.format("%d restored, %d skipped (from %s)", savedCount, skippedCount, label or "?"))
   for _, detail in ipairs(restoreDetails) do
     logEvent("restore-bear", detail)
   end
-  print(string.format("[layout.restore] Restored %d windows, skipped %d", savedCount, skippedCount))
+  print(string.format("[layout.restore] Restored %d windows, skipped %d (from %s)", savedCount, skippedCount, label or "?"))
 end
 
 -- ---------------------------------------------------------------------------
@@ -522,15 +614,25 @@ local function startPeriodicSave()
   periodicTimer = hs.timer.doEvery(PERIODIC_SAVE_INTERVAL, function()
     M.autoSave()
   end)
-  print("[layout] Periodic auto-save started (every " .. PERIODIC_SAVE_INTERVAL .. "s)")
+  if periodic10mTimer then periodic10mTimer:stop() end
+  periodic10mTimer = hs.timer.doEvery(PERIODIC_10M_INTERVAL, function()
+    if #hs.screen.allScreens() == TARGET_DISPLAY_COUNT then
+      rotateRing10m()
+    end
+  end)
+  print("[layout] Periodic auto-save started (1m + 10m rings)")
 end
 
 local function stopPeriodicSave()
   if periodicTimer then
     periodicTimer:stop()
     periodicTimer = nil
-    print("[layout] Periodic auto-save stopped")
   end
+  if periodic10mTimer then
+    periodic10mTimer:stop()
+    periodic10mTimer = nil
+  end
+  print("[layout] Periodic auto-save stopped")
 end
 
 local function onScreenChange()

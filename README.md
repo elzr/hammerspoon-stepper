@@ -100,14 +100,15 @@ These are direct arrow keys (no fn needed). The window's offset from the screen 
 
 ### Layout Save/Restore
 
-Automatically saves the window layout when connected to the 5-display desk setup, and prompts to restore when all 5 displays return (e.g., after sleep or reconnecting).
+Automatically saves the window layout when connected to the 5-display desk setup, and auto-restores when all 5 displays return (e.g., after sleep or reconnecting).
 
-- **Auto-save**: Every 5 minutes while at 5 displays, and on system sleep
+- **Auto-save**: Every 1 minute while at 5 displays, and on system sleep
+- **Backup rings**: 10 one-minute backups (~10 min history) + 10 ten-minute backups (~100 min history) in `data/layout-backups/`
 - **Display guard**: Auto-save only fires at 5 displays — sleeping with fewer screens won't overwrite the good layout
 - **Screen watcher**: When displays are added/removed, a 2-second debounce waits for all screens to stabilize before acting
-- **Restore prompt**: When transitioning to 5 displays, shows an alert with the restore hotkey
-- **Restore hotkey**: **ctrl+option+delete** (fn+ctrl+alt+delete) — restores the saved layout
-- **Manual save**: `layout.save()` in the console saves regardless of display count
+- **Auto-restore**: When transitioning to 5 displays, automatically restores the saved layout
+- **Manual save**: **ctrl+option+delete** (fn+ctrl+alt+delete) — pinned save, never overwritten by autosave
+- **Manual restore**: **ctrl+option+shift+delete** (fn+ctrl+alt+shift+delete) — restores pinned save; falls back to latest autosave if no pinned save exists
 
 ### Maximize Cycle (fn + shift + option + up)
 Progressive maximize:

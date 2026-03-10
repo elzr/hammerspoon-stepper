@@ -907,8 +907,11 @@ bear_hud.init(projectRoot, focus)
 -- Initialize layout auto-save, screen watcher, and Lunar name sync
 layout.init({screenswitch = screenswitch})
 
--- Restore layout hotkey: fn+ctrl+alt+delete (in the ⌃⌥ move-to-display family)
-hs.hotkey.bind({"ctrl", "alt"}, "forwarddelete", layout.restore)
+-- Manual layout save: fn+ctrl+alt+delete (pinned, survives autosave overwrites)
+hs.hotkey.bind({"ctrl", "alt"}, "forwarddelete", layout.manualSave)
+
+-- Manual layout restore: fn+ctrl+alt+shift+delete (reads pinned save, fallback to autosave)
+hs.hotkey.bind({"ctrl", "alt", "shift"}, "forwarddelete", layout.manualRestore)
 
 -- Save state before sleep, prompt restore on wake
 hs.caffeinate.watcher.new(function(event)
