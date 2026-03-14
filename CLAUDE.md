@@ -42,6 +42,20 @@ IPC must be enabled (`require("hs.ipc")` in init.lua). Use the reload script:
 
 The script backgrounds the reload command (to avoid hanging), waits for restart, and verifies completion.
 
+## Checking the Hammerspoon Console
+
+Never ask the user to check the Hammerspoon console — do it yourself using the helper script:
+
+```bash
+~/bin/hs-console.sh        # last 30 lines
+~/bin/hs-console.sh 10     # last 10 lines
+~/bin/hs-console.sh 0      # all output
+```
+
+This reads `hs.console.getConsole()` via IPC — the actual console output with timestamps, hotkey bindings, errors, and `print()` messages.
+
+Note: `log show --predicate 'process == "Hammerspoon"'` does NOT capture Hammerspoon's console output. Hammerspoon prints to its own console, not the macOS system log. Always use `hs-console.sh`.
+
 ## fn Key Workaround
 
 Hammerspoon cannot bind to `fn` directly. Instead, bind to the key that fn transforms the arrow keys into:
