@@ -22,7 +22,8 @@
     {"key": "I", "action": "open-bear-note", "title": "_index 2026"}
   ],
   "urls": [
-    {"key": "F", "url": "raycast://extensions/sara/featurebase/index"}
+    {"key": "F", "url": "raycast://extensions/sara/featurebase/index"},
+    {"key": "P", "url": "raycast://extensions/sara/spin/index"}
   ],
   "reservedKeys": ["X", "Q", "A", "Z", "— live window toggle slots, bound in bear-hud.lua"] // set with R⌥
 }
