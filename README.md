@@ -188,7 +188,7 @@ Default bindings (hyperkey = ctrl+alt+shift+cmd):
 | S | `_topsight 2026` |
 | I | `_index 2026` |
 
-Weekly note titles use template variables (`weekNum`, `weekDays`) defined in `bear-notes.jsonc`.
+Weekly note titles use template variables (`weekNum`, `weekDays`) defined in `bear-notes.jsonc`. These are **auto-updated every Monday** by a launchd job that computes the current ISO week and writes the correct date ranges for current/prev/next week (see `features/local/L005-weekly-updater-of-Bear-shortcuts/`).
 
 **Past week**: Hold the **right command** key while pressing hyper+D/W/T to open the previous week's note instead. Uses `pastWeekNum`/`pastWeekDays` vars.
 

@@ -1,13 +1,13 @@
 {
   "vars": {
-    "weekNum": "11",                   // current
-    "weekDays": "9-15mar2026",
+    "weekNum": "12",                   // current
+    "weekDays": "16-22mar2026",
 
-    "pastWeekNum": "10",              // R⌘ (right-cmd)
-    "pastWeekDays": "2-8mar2026",     // R⌘ (right-cmd)
+    "pastWeekNum": "11",              // R⌘ (right-cmd)
+    "pastWeekDays": "9-15mar2026",     // R⌘ (right-cmd)
 
-    "nextWeekNum": "12",              // R⌥ (right-option)
-    "nextWeekDays": "16-22mar2026"    // R⌥ (right-option)
+    "nextWeekNum": "13",              // R⌥ (right-option)
+    "nextWeekDays": "23-29mar2026"    // R⌥ (right-option)
   },
   // run ~/bin/hs-reload.sh to reload after editing
   "mods": ["ctrl", "alt", "shift", "cmd"],
