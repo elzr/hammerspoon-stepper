@@ -46,6 +46,17 @@ local ring10mIndex = 0
 local screenswitch = nil
 local triggerTimer = nil
 
+-- Retry state — polls for windows that weren't visible at restore time
+local RETRY_INTERVAL = 3          -- seconds between polls
+local RETRY_MAX_ATTEMPTS = 10     -- 30 seconds total
+local retryTimer = nil
+local retryActive = false
+
+-- Position protection — prevents autosave from recording macOS-placed positions
+local protectedEntries = {}       -- "App\nTitle" → saved entry (ground truth)
+local protectionExpiry = 0        -- timestamp when protection expires
+local PROTECTION_DURATION = 300   -- 5 minutes after reconnection
+
 -- ---------------------------------------------------------------------------
 -- Ring buffer log — keeps last 10 minutes of layout events for debugging
 -- ---------------------------------------------------------------------------
@@ -137,6 +148,58 @@ local function findScreen(entry)
   return hs.screen.mainScreen(), "fallback"
 end
 
+-- Compute the target frame for a saved entry on the current screen layout
+local function computeTargetFrame(entry)
+  local screen, matchType = findScreen(entry)
+  local sf = screen:frame()
+  if matchType == "exact" or matchType == "position" then
+    local sf_saved = entry.screenFrame
+    if math.abs(sf.x - sf_saved.x) > 2 or math.abs(sf.y - sf_saved.y) > 2 then
+      local rel = entry.frameRel
+      return {
+        x = math.floor(sf.x + rel.x * sf.w + 0.5),
+        y = math.floor(sf.y + rel.y * sf.h + 0.5),
+        w = math.floor(rel.w * sf.w + 0.5),
+        h = math.floor(rel.h * sf.h + 0.5),
+      }, screen, matchType .. "+rel"
+    end
+    return entry.frame, screen, matchType
+  end
+  local rel = entry.frameRel
+  return {
+    x = math.floor(sf.x + rel.x * sf.w + 0.5),
+    y = math.floor(sf.y + rel.y * sf.h + 0.5),
+    w = math.floor(rel.w * sf.w + 0.5),
+    h = math.floor(rel.h * sf.h + 0.5),
+  }, screen, matchType
+end
+
+-- Key for protectedEntries lookup
+local function protectionKey(appName, title)
+  return appName .. "\n" .. title
+end
+
+-- Cancel any active retry
+local function cancelRetry(reason)
+  if retryTimer then
+    retryTimer:stop()
+    retryTimer = nil
+  end
+  if retryActive then
+    retryActive = false
+    logEvent("retry-cancelled", reason or "unknown")
+  end
+end
+
+-- Clear all position protection
+local function clearProtection(reason)
+  if next(protectedEntries) then
+    protectedEntries = {}
+    protectionExpiry = 0
+    logEvent("protection-cleared", reason or "unknown")
+  end
+end
+
 local function showRestoreHint()
   print("[layout] Restore available — fn+ctrl+alt+shift+delete to restore layout")
 end
@@ -177,6 +240,47 @@ local function rotateRing10m()
   if copyFile(dataFile, dst) then
     logEvent("backup-10m", string.format("slot %d/%d", ring10mIndex, RING_10M_SIZE))
   end
+end
+
+-- ---------------------------------------------------------------------------
+-- macOS placement detection — populate protection after display reconnection
+-- ---------------------------------------------------------------------------
+
+local function detectMacOSPlacements(savedEntries)
+  protectedEntries = {}
+  protectionExpiry = hs.timer.secondsSinceEpoch() + PROTECTION_DURATION
+
+  -- Build live window lookup: app+title → screen position
+  local idToPos = buildScreenIdToPosition()
+  local livePositions = {}  -- "App\nTitle" → current screenPosition
+  for _, win in ipairs(hs.window.allWindows()) do
+    local app = win:application()
+    if app then
+      local screen = win:screen()
+      local pos = idToPos[screen:id()]
+      livePositions[protectionKey(app:name(), win:title())] = pos
+    end
+  end
+
+  local misplacedCount = 0
+  local missingCount = 0
+  for _, entry in ipairs(savedEntries) do
+    local key = protectionKey(entry.app, entry.title)
+    protectedEntries[key] = entry
+
+    local livePos = livePositions[key]
+    if livePos and entry.screenPosition and livePos ~= entry.screenPosition then
+      misplacedCount = misplacedCount + 1
+      logEvent("detect-macOS", string.format(
+        "%s '%s' on %s (saved: %s)", entry.app, entry.title, livePos, entry.screenPosition))
+    elseif not livePos then
+      missingCount = missingCount + 1
+    end
+  end
+
+  logEvent("protection-start", string.format(
+    "%d entries protected, %d macOS-misplaced, %d not yet visible, expires in %ds",
+    #savedEntries, misplacedCount, missingCount, PROTECTION_DURATION))
 end
 
 -- ---------------------------------------------------------------------------
@@ -292,6 +396,23 @@ function M.save()
     return
   end
 
+  -- Position protection: substitute saved positions for unverified windows
+  local protectedCount = 0
+  local now = hs.timer.secondsSinceEpoch()
+  if now < protectionExpiry and next(protectedEntries) then
+    for i, e in ipairs(entries) do
+      local key = protectionKey(e.app, e.title)
+      local saved = protectedEntries[key]
+      if saved and saved.screenPosition and e.screenPosition ~= saved.screenPosition then
+        logEvent("save-protected", string.format(
+          "%s '%s' kept at %s (currently on %s)",
+          e.app, e.title, saved.screenPosition, e.screenPosition or "?"))
+        entries[i] = saved
+        protectedCount = protectedCount + 1
+      end
+    end
+  end
+
   -- Build log summary: Bear windows and their screens
   local summary = {}
   for _, e in ipairs(entries) do
@@ -324,11 +445,11 @@ function M.restore()
   local fh = io.open(dataFile, "r")
   if not fh then
     print("[layout.restore] No saved layout found at " .. dataFile)
-    return
+    return {}
   end
   local json = fh:read("*a")
   fh:close()
-  M.restoreFromJSON(json, dataFile)
+  return M.restoreFromJSON(json, dataFile) or {}
 end
 
 -- ---------------------------------------------------------------------------
@@ -336,6 +457,7 @@ end
 -- ---------------------------------------------------------------------------
 
 function M.manualSave()
+  clearProtection("manual save")
   M.save()  -- writes to main dataFile + 1m ring as usual
   if copyFile(dataFile, manualFile) then
     logEvent("manual-save", manualFile)
@@ -351,6 +473,8 @@ end
 -- ---------------------------------------------------------------------------
 
 function M.manualRestore()
+  cancelRetry("manual restore")
+  clearProtection("manual restore")
   -- Try manual save first
   local fh = io.open(manualFile, "r")
   local source = manualFile
@@ -379,7 +503,7 @@ function M.restoreFromJSON(json, label)
   local ok, entries = pcall(hs.json.decode, json)
   if not ok or type(entries) ~= "table" then
     print("[layout.restore] ERROR: could not parse layout JSON from " .. (label or "?"))
-    return
+    return {}
   end
 
   -- Build per-app window list
@@ -395,6 +519,7 @@ function M.restoreFromJSON(json, label)
 
   local matched = {}
   local pairs_list = {}
+  local misses = {}
 
   for idx, entry in ipairs(entries) do
     local candidates = appWindows[entry.app] or {}
@@ -437,6 +562,7 @@ function M.restoreFromJSON(json, label)
       matched[found:id()] = true
       table.insert(pairs_list, { win = found, entry = entry, idx = idx, matchTier = matchTier })
     else
+      table.insert(misses, entry)
       logEvent("restore-miss", string.format("%s '%s' → no live window", entry.app, entry.title))
     end
   end
@@ -450,32 +576,7 @@ function M.restoreFromJSON(json, label)
 
   for _, p in ipairs(pairs_list) do
     local win, entry = p.win, p.entry
-    local screen, matchType = findScreen(entry)
-    local sf = screen:frame()
-    local targetFrame
-
-    if matchType == "exact" or matchType == "position" then
-      targetFrame = entry.frame
-      local sf_saved = entry.screenFrame
-      if math.abs(sf.x - sf_saved.x) > 2 or math.abs(sf.y - sf_saved.y) > 2 then
-        local rel = entry.frameRel
-        targetFrame = {
-          x = math.floor(sf.x + rel.x * sf.w + 0.5),
-          y = math.floor(sf.y + rel.y * sf.h + 0.5),
-          w = math.floor(rel.w * sf.w + 0.5),
-          h = math.floor(rel.h * sf.h + 0.5),
-        }
-        matchType = matchType .. "+rel"
-      end
-    else
-      local rel = entry.frameRel
-      targetFrame = {
-        x = math.floor(sf.x + rel.x * sf.w + 0.5),
-        y = math.floor(sf.y + rel.y * sf.h + 0.5),
-        w = math.floor(rel.w * sf.w + 0.5),
-        h = math.floor(rel.h * sf.h + 0.5),
-      }
-    end
+    local targetFrame, screen, matchType = computeTargetFrame(entry)
 
     if entry.app == "Bear" then
       table.insert(restoreDetails, string.format(
@@ -487,6 +588,10 @@ function M.restoreFromJSON(json, label)
 
     win:setFrame(targetFrame)
     savedCount = savedCount + 1
+
+    -- Mark as verified in position protection
+    local key = protectionKey(entry.app, entry.title)
+    protectedEntries[key] = nil
   end
 
   hs.window.animationDuration = origDuration
@@ -501,6 +606,95 @@ function M.restoreFromJSON(json, label)
     logEvent("restore-bear", detail)
   end
   print(string.format("[layout.restore] Restored %d windows, skipped %d (from %s)", savedCount, skippedCount, label or "?"))
+
+  return misses
+end
+
+-- ---------------------------------------------------------------------------
+-- retryMisses — poll for windows that weren't visible at restore time
+-- ---------------------------------------------------------------------------
+
+local function retryMisses(misses, label, attempt)
+  attempt = attempt or 1
+
+  if #misses == 0 then
+    retryActive = false
+    retryTimer = nil
+    logEvent("retry-done", string.format(
+      "all missed windows found after %d attempts", attempt - 1))
+    -- Heal: save the now-correct layout
+    hs.timer.doAfter(1, function() M.save() end)
+    return
+  end
+
+  if attempt > RETRY_MAX_ATTEMPTS then
+    for _, entry in ipairs(misses) do
+      logEvent("retry-gave-up", string.format("%s '%s'", entry.app, entry.title))
+    end
+    retryActive = false
+    retryTimer = nil
+    logEvent("retry-done", string.format(
+      "%d still missing after %d attempts (protection still active)",
+      #misses, RETRY_MAX_ATTEMPTS))
+    return
+  end
+
+  retryTimer = hs.timer.doAfter(RETRY_INTERVAL, function()
+    -- Build fresh window list
+    local appWindows = {}
+    for _, win in ipairs(hs.window.allWindows()) do
+      local app = win:application()
+      if app then
+        local name = app:name()
+        if not appWindows[name] then appWindows[name] = {} end
+        table.insert(appWindows[name], win)
+      end
+    end
+
+    local stillMissing = {}
+    local found = 0
+    local origDuration = hs.window.animationDuration
+    hs.window.animationDuration = 0
+
+    for _, entry in ipairs(misses) do
+      local candidates = appWindows[entry.app] or {}
+      local win = nil
+
+      -- Tier 1: exact title match
+      for _, w in ipairs(candidates) do
+        if w:title() == entry.title then win = w; break end
+      end
+
+      -- Tier 2: 40-char prefix (no index fallback — too risky during retry)
+      if not win then
+        local prefix = entry.title:sub(1, 40)
+        for _, w in ipairs(candidates) do
+          if w:title():sub(1, 40) == prefix then win = w; break end
+        end
+      end
+
+      if win then
+        local targetFrame = computeTargetFrame(entry)
+        win:setFrame(targetFrame)
+        found = found + 1
+        -- Remove from protection (verified)
+        protectedEntries[protectionKey(entry.app, entry.title)] = nil
+        logEvent("retry-restored", string.format(
+          "%s '%s' → %s (attempt %d)", entry.app, entry.title,
+          entry.screenPosition or "?", attempt))
+      else
+        table.insert(stillMissing, entry)
+      end
+    end
+
+    hs.window.animationDuration = origDuration
+
+    logEvent("retry-poll", string.format(
+      "attempt %d/%d: found %d, still missing %d",
+      attempt, RETRY_MAX_ATTEMPTS, found, #stillMissing))
+
+    retryMisses(stillMissing, label, attempt + 1)
+  end)
 end
 
 -- ---------------------------------------------------------------------------
@@ -587,6 +781,10 @@ function M.autoSave()
   if count ~= TARGET_DISPLAY_COUNT then
     return
   end
+  if retryActive then
+    logEvent("autosave-suppressed", "retry in progress")
+    return
+  end
   M.save()
 end
 
@@ -598,6 +796,12 @@ end
 
 function M.triggerSave(reason)
   if triggerTimer then triggerTimer:stop() end
+  if retryActive then
+    logEvent("trigger-suppressed", reason or "unknown")
+    return
+  end
+  -- Stepper-initiated move: clear protection for the moved window
+  -- (reason format is "move-to-display:position 'title'" from stepper.lua)
   logEvent("trigger", reason or "unknown")
   triggerTimer = hs.timer.doAfter(SAVE_TRIGGER_DELAY, function()
     triggerTimer = nil
@@ -643,11 +847,30 @@ local function onScreenChange()
     logEvent("screens", string.format("%d → %d", lastScreenCount, count))
 
     if count == TARGET_DISPLAY_COUNT and lastScreenCount ~= TARGET_DISPLAY_COUNT then
-      -- Transitioning TO 5 displays — auto-restore after a short delay
-      -- (give macOS a moment to finalize screen arrangement)
+      -- Transitioning TO 5 displays
+      -- Cancel any stale retry from a previous reconnection
+      cancelRetry("new screen change")
+
       hs.timer.doAfter(1, function()
         print("[layout] Auto-restoring layout for " .. TARGET_DISPLAY_COUNT .. " displays")
-        M.restore()
+
+        -- Load saved layout for detection before restore
+        local fh = io.open(dataFile, "r")
+        if fh then
+          local json = fh:read("*a")
+          fh:close()
+          local ok, savedEntries = pcall(hs.json.decode, json)
+          if ok and type(savedEntries) == "table" then
+            detectMacOSPlacements(savedEntries)
+          end
+        end
+
+        local misses = M.restore()
+        if misses and #misses > 0 then
+          retryActive = true
+          logEvent("retry-start", string.format("%d missed windows", #misses))
+          retryMisses(misses, "auto-restore")
+        end
       end)
       startPeriodicSave()
       -- Sync Lunar display names after a short delay for Lunar to detect screens
@@ -655,6 +878,8 @@ local function onScreenChange()
       lunarSyncTimer = hs.timer.doAfter(LUNAR_SYNC_DELAY, syncLunarNames)
     elseif count ~= TARGET_DISPLAY_COUNT and lastScreenCount == TARGET_DISPLAY_COUNT then
       -- Transitioning FROM 5 displays
+      cancelRetry("displays disconnected")
+      clearProtection("displays disconnected")
       stopPeriodicSave()
     end
 
