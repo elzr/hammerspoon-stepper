@@ -99,6 +99,19 @@ local function roundFrame(f)
   }
 end
 
+-- Minimum dimensions for a real window — anything smaller is a tooltip/popover/toolbar
+local MIN_WINDOW_WIDTH = 100
+local MIN_WINDOW_HEIGHT = 100
+
+local function isGhostWindow(win)
+  if not win:isStandard() then return true end
+  local f = win:frame()
+  if f.w < MIN_WINDOW_WIDTH or f.h < MIN_WINDOW_HEIGHT then return true end
+  local title = win:title()
+  if title and title:find("\n") then return true end
+  return false
+end
+
 -- Reverse lookup: screen ID -> position name using screenswitch.buildScreenMap()
 local function buildScreenIdToPosition()
   if not screenswitch then return {} end
@@ -253,7 +266,7 @@ local function detectMacOSPlacements(savedEntries)
   -- Build live window lookup: app+title → screen position
   local idToPos = buildScreenIdToPosition()
   local livePositions = {}  -- "App\nTitle" → current screenPosition
-  for _, win in ipairs(hs.window.allWindows()) do
+  for _, win in ipairs(hs.window.orderedWindows()) do
     local app = win:application()
     if app then
       local screen = win:screen()
@@ -367,6 +380,12 @@ function M.save()
   for _, win in ipairs(windows) do
     local app = win:application()
     if not app then goto continue end
+
+    if isGhostWindow(win) then
+      logEvent("save-skip-ghost", string.format(
+        "%s '%s' %dx%d", app:name(), win:title(), win:frame().w, win:frame().h))
+      goto continue
+    end
 
     local screen = win:screen()
     local sf = screen:frame()
@@ -508,7 +527,7 @@ function M.restoreFromJSON(json, label)
 
   -- Build per-app window list
   local appWindows = {}
-  for _, win in ipairs(hs.window.allWindows()) do
+  for _, win in ipairs(hs.window.orderedWindows()) do
     local app = win:application()
     if app then
       local name = app:name()
@@ -547,14 +566,21 @@ function M.restoreFromJSON(json, label)
       end
     end
 
-    -- Tier 3: index fallback
+    -- Tier 3: index fallback (with size guard against ghost entries)
     if not found then
-      for _, win in ipairs(candidates) do
-        if not matched[win:id()] then
-          found = win
-          matchTier = "index-fallback"
-          break
+      local sf = entry.frame
+      if sf.w >= MIN_WINDOW_WIDTH and sf.h >= MIN_WINDOW_HEIGHT then
+        for _, win in ipairs(candidates) do
+          if not matched[win:id()] then
+            found = win
+            matchTier = "index-fallback"
+            break
+          end
         end
+      else
+        logEvent("restore-skip-tier3", string.format(
+          "%s '%s' saved frame %dx%d too small for fallback",
+          entry.app, entry.title, sf.w, sf.h))
       end
     end
 
@@ -642,7 +668,7 @@ local function retryMisses(misses, label, attempt)
   retryTimer = hs.timer.doAfter(RETRY_INTERVAL, function()
     -- Build fresh window list
     local appWindows = {}
-    for _, win in ipairs(hs.window.allWindows()) do
+    for _, win in ipairs(hs.window.orderedWindows()) do
       local app = win:application()
       if app then
         local name = app:name()
@@ -738,7 +764,7 @@ function M.gather()
     local origDuration = hs.window.animationDuration
     hs.window.animationDuration = 0
 
-    for _, win in ipairs(hs.window.allWindows()) do
+    for _, win in ipairs(hs.window.orderedWindows()) do
       local winScreen = win:screen()
       if winScreen and winScreen:id() ~= mainScreen:id() then
         local sf  = winScreen:frame()
