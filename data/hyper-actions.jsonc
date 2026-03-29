@@ -1,0 +1,49 @@
+[
+  // Google Sheets: Insert → Columns → Insert 1 column left
+  // Menu path: ctrl+opt+I opens Insert menu, C → Columns, C → "Insert 1 column left"
+  {
+    "key": "[",
+    "action": "keystroke-sequence",
+    "sequence": [
+      {"key": "I", "mods": ["ctrl", "alt"]},
+      {"key": "C", "delay": 0.15},
+      {"key": "C", "delay": 0.15}
+    ]
+  },
+
+  // Google Sheets: Insert → Columns → Insert 1 column right
+  // Menu path: ctrl+opt+I opens Insert menu, C → Columns, O → "Insert 1 column right"
+  {
+    "key": "]",
+    "action": "keystroke-sequence",
+    "sequence": [
+      {"key": "I", "mods": ["ctrl", "alt"]},
+      {"key": "C", "delay": 0.15},
+      {"key": "O", "delay": 0.15}
+    ]
+  },
+
+  // Google Sheets: Insert → Rows → Insert 1 row above
+  // Menu path: ctrl+opt+I opens Insert menu, R → Rows, R → "Insert 1 row above"
+  {
+    "key": "-",
+    "action": "keystroke-sequence",
+    "sequence": [
+      {"key": "I", "mods": ["ctrl", "alt"]},
+      {"key": "R", "delay": 0.15},
+      {"key": "R", "delay": 0.15}
+    ]
+  },
+
+  // Google Sheets: Insert → Rows → Insert 1 row below
+  // Menu path: ctrl+opt+I opens Insert menu, R → Rows, B → "Insert 1 row below"
+  {
+    "key": "=",
+    "action": "keystroke-sequence",
+    "sequence": [
+      {"key": "I", "mods": ["ctrl", "alt"]},
+      {"key": "R", "delay": 0.15},
+      {"key": "B", "delay": 0.15}
+    ]
+  }
+]

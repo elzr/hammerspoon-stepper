@@ -929,6 +929,62 @@ function M.init(projectRoot, focus)
           print(string.format("[bear-hud] Bound %s → live (not set)", key))
         end
       end
+
+      -- General hyperkey actions from hyper-actions.jsonc
+      local actionsFile = projectRoot .. "data/hyper-actions.jsonc"
+      local af = io.open(actionsFile, "r")
+      if af then
+        local actionsContent = af:read("*a")
+        af:close()
+        -- Strip // line comments for JSONC support (but not :// in URLs)
+        actionsContent = actionsContent:gsub("([^:])//[^\n]*", "%1")
+        local actions = hs.json.decode(actionsContent)
+        if actions then
+          -- Helper: post a single keystroke directly to an app
+          local function postKeystroke(app, key, ksMods)
+            local flagTable = {}
+            for _, m in ipairs(ksMods or {}) do flagTable[m] = true end
+            local down = hs.eventtap.event.newKeyEvent(key, true)
+            down:setFlags(flagTable)
+            local up = hs.eventtap.event.newKeyEvent(key, false)
+            up:setFlags(flagTable)
+            down:post(app)
+            up:post(app)
+          end
+
+          for _, act in ipairs(actions) do
+            if act.action == "keystroke" then
+              local ks = act.keystroke
+              hs.hotkey.bind(mods, act.key, function()
+                postKeystroke(hs.application.frontmostApplication(), ks.key, ks.mods)
+              end)
+              print(string.format("[bear-hud] Bound %s → keystroke %s+%s", act.key, table.concat(ks.mods or {}, "+"), ks.key))
+
+            elseif act.action == "keystroke-sequence" then
+              local seq = act.sequence
+              hs.hotkey.bind(mods, act.key, function()
+                local app = hs.application.frontmostApplication()
+                local elapsed = 0
+                for i, step in ipairs(seq) do
+                  elapsed = elapsed + (step.delay or 0)
+                  if elapsed == 0 then
+                    postKeystroke(app, step.key, step.mods)
+                  else
+                    local d = elapsed
+                    local s = step
+                    hs.timer.doAfter(d, function()
+                      postKeystroke(app, s.key, s.mods)
+                    end)
+                  end
+                end
+              end)
+              local keys = {}
+              for _, s in ipairs(seq) do keys[#keys + 1] = s.key end
+              print(string.format("[bear-hud] Bound %s → sequence %s", act.key, table.concat(keys, " → ")))
+            end
+          end
+        end
+      end
     end
   else
     print("[bear-hud] No bear-notes.jsonc found, skipping hotkeys")
