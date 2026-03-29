@@ -52,6 +52,10 @@ local RETRY_MAX_ATTEMPTS = 10     -- 30 seconds total
 local retryTimer = nil
 local retryActive = false
 
+-- Zero-window detection — tracks consecutive autosave cycles with 0 visible windows
+-- Used to detect screen lock/display sleep (where screensDidWake doesn't fire)
+local zeroWindowStreak = 0
+
 -- Position protection — prevents autosave from recording macOS-placed positions
 local protectedEntries = {}       -- "App\nTitle" → saved entry (ground truth)
 local protectionExpiry = 0        -- timestamp when protection expires
@@ -539,41 +543,53 @@ function M.restoreFromJSON(json, label)
   local matched = {}
   local pairs_list = {}
   local misses = {}
+  local entryMatched = {}  -- idx → true when an entry has been paired
 
+  -- Multi-pass matching: exact-title first, then prefix, then index-fallback.
+  -- This prevents a stale entry's index-fallback from stealing a window that
+  -- a later entry would match by exact title. (See F027 case study:
+  -- case-layout-greedy-matching-steals-windows.md)
+
+  -- Pass 1: exact title match only
   for idx, entry in ipairs(entries) do
     local candidates = appWindows[entry.app] or {}
-    local found = nil
-    local matchTier = nil
-
-    -- Tier 1: exact title match
     for _, win in ipairs(candidates) do
       if not matched[win:id()] and win:title() == entry.title then
-        found = win
-        matchTier = "exact-title"
+        matched[win:id()] = true
+        entryMatched[idx] = true
+        table.insert(pairs_list, { win = win, entry = entry, idx = idx, matchTier = "exact-title" })
         break
       end
     end
+  end
 
-    -- Tier 2: 40-char prefix match
-    if not found then
+  -- Pass 2: 40-char prefix match for unmatched entries
+  for idx, entry in ipairs(entries) do
+    if not entryMatched[idx] then
+      local candidates = appWindows[entry.app] or {}
       local savedPrefix = entry.title:sub(1, 40)
       for _, win in ipairs(candidates) do
         if not matched[win:id()] and win:title():sub(1, 40) == savedPrefix then
-          found = win
-          matchTier = "prefix-40"
+          matched[win:id()] = true
+          entryMatched[idx] = true
+          table.insert(pairs_list, { win = win, entry = entry, idx = idx, matchTier = "prefix-40" })
           break
         end
       end
     end
+  end
 
-    -- Tier 3: index fallback (with size guard against ghost entries)
-    if not found then
+  -- Pass 3: index fallback for remaining unmatched entries
+  for idx, entry in ipairs(entries) do
+    if not entryMatched[idx] then
+      local candidates = appWindows[entry.app] or {}
       local sf = entry.frame
       if sf.w >= MIN_WINDOW_WIDTH and sf.h >= MIN_WINDOW_HEIGHT then
         for _, win in ipairs(candidates) do
           if not matched[win:id()] then
-            found = win
-            matchTier = "index-fallback"
+            matched[win:id()] = true
+            entryMatched[idx] = true
+            table.insert(pairs_list, { win = win, entry = entry, idx = idx, matchTier = "index-fallback" })
             break
           end
         end
@@ -582,14 +598,11 @@ function M.restoreFromJSON(json, label)
           "%s '%s' saved frame %dx%d too small for fallback",
           entry.app, entry.title, sf.w, sf.h))
       end
-    end
 
-    if found then
-      matched[found:id()] = true
-      table.insert(pairs_list, { win = found, entry = entry, idx = idx, matchTier = matchTier })
-    else
-      table.insert(misses, entry)
-      logEvent("restore-miss", string.format("%s '%s' → no live window", entry.app, entry.title))
+      if not entryMatched[idx] then
+        table.insert(misses, entry)
+        logEvent("restore-miss", string.format("%s '%s' → no live window", entry.app, entry.title))
+      end
     end
   end
 
@@ -615,9 +628,13 @@ function M.restoreFromJSON(json, label)
     win:setFrame(targetFrame)
     savedCount = savedCount + 1
 
-    -- Mark as verified in position protection
-    local key = protectionKey(entry.app, entry.title)
-    protectedEntries[key] = nil
+    -- Mark as verified in position protection (only for reliable matches).
+    -- Index-fallback matches may have grabbed the wrong window — keep
+    -- protection active so autosave can substitute the correct position.
+    if p.matchTier ~= "index-fallback" then
+      local key = protectionKey(entry.app, entry.title)
+      protectedEntries[key] = nil
+    end
   end
 
   hs.window.animationDuration = origDuration
@@ -811,6 +828,26 @@ function M.autoSave()
     logEvent("autosave-suppressed", "retry in progress")
     return
   end
+
+  -- Pre-check: are windows visible? (screen lock / display sleep → 0 windows)
+  local windows = hs.window.orderedWindows()
+  if #windows == 0 then
+    zeroWindowStreak = zeroWindowStreak + 1
+    print("[layout.save] Skipping save — 0 windows found (display may still be waking)")
+    return
+  end
+
+  -- Windows reappeared after zero-window streak (screen lock/wake, display sleep)
+  -- Treat as wake: check for drift and auto-restore instead of saving shuffled positions
+  if zeroWindowStreak > 0 then
+    logEvent("windows-reappeared", string.format(
+      "%d windows visible after %d zero-window cycles (~%ds)",
+      #windows, zeroWindowStreak, zeroWindowStreak * PERIODIC_SAVE_INTERVAL))
+    zeroWindowStreak = 0
+    M.onWake()
+    return
+  end
+
   M.save()
 end
 
@@ -914,13 +951,73 @@ local function onScreenChange()
 end
 
 -- ---------------------------------------------------------------------------
--- M.onWake() — show restore prompt if waking at 5 displays
+-- M.onWake() — compare layout after wake, auto-restore if windows drifted
 -- ---------------------------------------------------------------------------
 
+local WAKE_SETTLE_DELAY = 3  -- seconds for displays/windows to stabilize after wake
+
 function M.onWake()
-  if #hs.screen.allScreens() == TARGET_DISPLAY_COUNT then
+  if #hs.screen.allScreens() ~= TARGET_DISPLAY_COUNT then
     showRestoreHint()
+    return
   end
+
+  hs.timer.doAfter(WAKE_SETTLE_DELAY, function()
+    -- Bail if displays changed during settle delay
+    if #hs.screen.allScreens() ~= TARGET_DISPLAY_COUNT then return end
+
+    -- Load saved layout
+    local fh = io.open(dataFile, "r")
+    if not fh then return end
+    local json = fh:read("*a")
+    fh:close()
+    local ok, savedEntries = pcall(hs.json.decode, json)
+    if not ok or type(savedEntries) ~= "table" then return end
+
+    -- Build live window positions
+    local idToPos = buildScreenIdToPosition()
+    local livePositions = {}
+    for _, win in ipairs(hs.window.orderedWindows()) do
+      local app = win:application()
+      if app then
+        local pos = idToPos[win:screen():id()]
+        livePositions[protectionKey(app:name(), win:title())] = pos
+      end
+    end
+
+    -- Compare: count windows that moved to a different display
+    local driftCount = 0
+    local driftDetails = {}
+    for _, entry in ipairs(savedEntries) do
+      local key = protectionKey(entry.app, entry.title)
+      local livePos = livePositions[key]
+      if livePos and entry.screenPosition and livePos ~= entry.screenPosition then
+        driftCount = driftCount + 1
+        table.insert(driftDetails, string.format(
+          "%s '%s' on %s (saved: %s)", entry.app, entry.title, livePos, entry.screenPosition))
+      end
+    end
+
+    if driftCount == 0 then
+      logEvent("wake-check", "no drift detected")
+      return
+    end
+
+    -- Windows drifted — restore
+    for _, detail in ipairs(driftDetails) do
+      logEvent("wake-drift", detail)
+    end
+    logEvent("wake-restore", string.format("%d windows drifted, restoring", driftCount))
+    print(string.format("[layout] Wake: %d windows drifted — auto-restoring", driftCount))
+
+    detectMacOSPlacements(savedEntries)
+    local misses = M.restore()
+    if misses and #misses > 0 then
+      retryActive = true
+      logEvent("retry-start", string.format("%d missed windows", #misses))
+      retryMisses(misses, "wake-restore")
+    end
+  end)
 end
 
 -- ---------------------------------------------------------------------------

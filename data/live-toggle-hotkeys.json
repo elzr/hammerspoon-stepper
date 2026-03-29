@@ -1,14 +1,18 @@
 {
-  "Q" : {
-    "title" : "_budget 2026",
-    "bundleID" : "net.shinyfrog.bear"
-  },
   "A" : {
     "title" : "mas2 | Evaluate: Map Libraries",
     "bundleID" : "net.kovidgoyal.kitty"
   },
+  "Q" : {
+    "title" : "_budget 2026",
+    "bundleID" : "net.shinyfrog.bear"
+  },
   "Z" : {
     "title" : "_hci feb2026",
+    "bundleID" : "net.shinyfrog.bear"
+  },
+  "X" : {
+    "title" : "_meet Ale 21mar2026",
     "bundleID" : "net.shinyfrog.bear"
   }
 }
