@@ -952,36 +952,78 @@ function M.init(projectRoot, focus)
             up:post(app)
           end
 
+          -- Helper: build a callback for a keystroke-sequence action
+          local function makeSequenceCallback(seq)
+            return function()
+              local app = hs.application.frontmostApplication()
+              local elapsed = 0
+              for i, step in ipairs(seq) do
+                elapsed = elapsed + (step.delay or 0)
+                if elapsed == 0 then
+                  postKeystroke(app, step.key, step.mods)
+                else
+                  local d = elapsed
+                  local s = step
+                  hs.timer.doAfter(d, function()
+                    postKeystroke(app, s.key, s.mods)
+                  end)
+                end
+              end
+            end
+          end
+
+          -- Track scoped hotkeys for window-based enable/disable
+          local scopedHotkeys = {}
+
           for _, act in ipairs(actions) do
+            local actMods = act.mods or mods  -- custom mods or default hyper
+            local modLabel = table.concat(actMods, "+")
+
             if act.action == "keystroke" then
               local ks = act.keystroke
-              hs.hotkey.bind(mods, act.key, function()
+              hs.hotkey.bind(actMods, act.key, function()
                 postKeystroke(hs.application.frontmostApplication(), ks.key, ks.mods)
               end)
-              print(string.format("[bear-hud] Bound %s → keystroke %s+%s", act.key, table.concat(ks.mods or {}, "+"), ks.key))
+              print(string.format("[bear-hud] Bound %s+%s → keystroke %s+%s", modLabel, act.key, table.concat(ks.mods or {}, "+"), ks.key))
 
             elseif act.action == "keystroke-sequence" then
               local seq = act.sequence
-              hs.hotkey.bind(mods, act.key, function()
-                local app = hs.application.frontmostApplication()
-                local elapsed = 0
-                for i, step in ipairs(seq) do
-                  elapsed = elapsed + (step.delay or 0)
-                  if elapsed == 0 then
-                    postKeystroke(app, step.key, step.mods)
-                  else
-                    local d = elapsed
-                    local s = step
-                    hs.timer.doAfter(d, function()
-                      postKeystroke(app, s.key, s.mods)
-                    end)
-                  end
-                end
-              end)
               local keys = {}
               for _, s in ipairs(seq) do keys[#keys + 1] = s.key end
-              print(string.format("[bear-hud] Bound %s → sequence %s", act.key, table.concat(keys, " → ")))
+              local seqLabel = table.concat(keys, " → ")
+
+              if act.scope and act.scope.titleContains then
+                -- Scoped: create disabled, managed by window focus watcher
+                local hk = hs.hotkey.new(actMods, act.key, makeSequenceCallback(seq))
+                table.insert(scopedHotkeys, {
+                  hotkey = hk,
+                  titleContains = act.scope.titleContains
+                })
+                print(string.format("[bear-hud] Bound %s+%s → sequence %s (scoped: %s)", modLabel, act.key, seqLabel, act.scope.titleContains))
+              else
+                -- Global: bind immediately
+                hs.hotkey.bind(actMods, act.key, makeSequenceCallback(seq))
+                print(string.format("[bear-hud] Bound %s+%s → sequence %s", modLabel, act.key, seqLabel))
+              end
             end
+          end
+
+          -- Window focus watcher for scoped hotkeys
+          if #scopedHotkeys > 0 then
+            local scopeFilter = hs.window.filter.new(true)
+            scopeFilter:subscribe(hs.window.filter.windowFocused, function(win)
+              local title = win and win:title() or ""
+              for _, entry in ipairs(scopedHotkeys) do
+                if title:find(entry.titleContains, 1, true) then
+                  entry.hotkey:enable()
+                else
+                  entry.hotkey:disable()
+                end
+              end
+            end)
+            -- Store reference to prevent GC
+            M._scopeFilter = scopeFilter
+            print(string.format("[bear-hud] Scope watcher active for %d hotkeys", #scopedHotkeys))
           end
         end
       end

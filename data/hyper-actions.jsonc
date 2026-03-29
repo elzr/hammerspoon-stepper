@@ -1,4 +1,6 @@
 [
+  // ── Hyper key shortcuts (global) ──────────────────────────────
+
   // Google Sheets: Insert → Columns → Insert 1 column left
   // Menu path: ctrl+opt+I opens Insert menu, C → Columns, C → "Insert 1 column left"
   {
@@ -40,6 +42,62 @@
   {
     "key": "=",
     "action": "keystroke-sequence",
+    "sequence": [
+      {"key": "I", "mods": ["ctrl", "alt"]},
+      {"key": "R", "delay": 0.15},
+      {"key": "B", "delay": 0.15}
+    ]
+  },
+
+  // ── Bear-style shortcuts (scoped to Google Sheets windows) ────
+  // Inspired by Bear Notes' ctrl+cmd+arrow table shortcuts.
+  // Only active when the focused window title contains "- Google Sheets".
+
+  // ctrl+cmd+← : Insert 1 column left
+  {
+    "key": "left",
+    "mods": ["ctrl", "cmd"],
+    "action": "keystroke-sequence",
+    "scope": {"titleContains": "- Google Sheets"},
+    "sequence": [
+      {"key": "I", "mods": ["ctrl", "alt"]},
+      {"key": "C", "delay": 0.15},
+      {"key": "C", "delay": 0.15}
+    ]
+  },
+
+  // ctrl+cmd+→ : Insert 1 column right
+  {
+    "key": "right",
+    "mods": ["ctrl", "cmd"],
+    "action": "keystroke-sequence",
+    "scope": {"titleContains": "- Google Sheets"},
+    "sequence": [
+      {"key": "I", "mods": ["ctrl", "alt"]},
+      {"key": "C", "delay": 0.15},
+      {"key": "O", "delay": 0.15}
+    ]
+  },
+
+  // ctrl+cmd+↑ : Insert 1 row above
+  {
+    "key": "up",
+    "mods": ["ctrl", "cmd"],
+    "action": "keystroke-sequence",
+    "scope": {"titleContains": "- Google Sheets"},
+    "sequence": [
+      {"key": "I", "mods": ["ctrl", "alt"]},
+      {"key": "R", "delay": 0.15},
+      {"key": "R", "delay": 0.15}
+    ]
+  },
+
+  // ctrl+cmd+↓ : Insert 1 row below
+  {
+    "key": "down",
+    "mods": ["ctrl", "cmd"],
+    "action": "keystroke-sequence",
+    "scope": {"titleContains": "- Google Sheets"},
     "sequence": [
       {"key": "I", "mods": ["ctrl", "alt"]},
       {"key": "R", "delay": 0.15},

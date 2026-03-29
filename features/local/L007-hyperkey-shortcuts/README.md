@@ -54,14 +54,22 @@ Config: [`data/hyper-actions.jsonc`](https://stepper.internal/data/hyper-actions
 
 Hyper + key → arbitrary action (keystroke sequence, URL, script). For shortcuts that aren't launchers. Supports two action types: `keystroke` (single key combo) and `keystroke-sequence` (chained keystrokes with delays for menu navigation).
 
+Actions can override the default hyper modifiers with a custom `mods` field, and can be scoped to specific windows via `scope.titleContains` — scoped hotkeys are disabled by default and only activate when the focused window title matches.
+
 Current entries — all Google Sheets insert shortcuts:
 
-| Shortcut | Action |
-|----------|--------|
-| **hyper+[** | Insert → Columns → Insert 1 column left |
-| **hyper+]** | Insert → Columns → Insert 1 column right |
-| **hyper+-** | Insert → Rows → Insert 1 row above |
-| **hyper+=** | Insert → Rows → Insert 1 row below |
+| Shortcut | Scope | Action |
+|----------|-------|--------|
+| **hyper+[** | global | Insert → Columns → Insert 1 column left |
+| **hyper+]** | global | Insert → Columns → Insert 1 column right |
+| **hyper+-** | global | Insert → Rows → Insert 1 row above |
+| **hyper+=** | global | Insert → Rows → Insert 1 row below |
+| **ctrl+cmd+←** | Google Sheets | Insert 1 column left |
+| **ctrl+cmd+→** | Google Sheets | Insert 1 column right |
+| **ctrl+cmd+↑** | Google Sheets | Insert 1 row above |
+| **ctrl+cmd+↓** | Google Sheets | Insert 1 row below |
+
+The ctrl+cmd+arrow shortcuts mirror Bear Notes' table insert shortcuts. They only activate when the focused window title contains "- Google Sheets".
 
 ### Technical note: posting keystrokes
 
@@ -122,11 +130,11 @@ Then run `~/bin/hs-reload.sh`.
 
 Google Sheets has no direct keyboard shortcuts for inserting rows/columns in a specific direction. The built-in ctrl+shift+= inserts based on the current selection, which is inconsistent — sometimes it selects the full row/column, sometimes just a partial range, and the behavior changes depending on context. This inconsistency breaks muscle memory and forces you back to the menu every time.
 
-This frustration persisted for **years**. Multiple attempts to solve it were abandoned — BetterTouchTool could trigger the right keystrokes but clashed with the Hyperkey app (see [Known conflict pattern](#known-conflict-pattern)). A conversation with David Pang (founder of [SheetWiz](https://sheetwiz.app/)) confirmed that the inconsistency is a Google limitation, not a configuration problem.
+This frustration persisted for **years**. A conversation with David Pang (founder of [SheetWiz](https://sheetwiz.app/)) confirmed that the inconsistency is a Google limitation, not a configuration problem.
 
-The inspiration for directional insert shortcuts came from **Bear Notes**, which has beautifully consistent table shortcuts: ctrl+cmd+arrow to add rows/columns in any direction. That convinced me the desire for consistency was valid — the problem was Google Sheets, not my expectations.
+The inspiration came from **Bear Notes**, which has beautifully consistent table shortcuts: ctrl+cmd+arrow to add rows/columns in any direction. That convinced me the desire for consistency was valid — the problem was Google Sheets, not my expectations.
 
-The solution: bypass the shortcut system entirely and automate the menu accelerator sequences (Insert → Columns/Rows → direction) through Hammerspoon's `keystroke-sequence` action type, posting directly to the app to avoid the Hyperkey modifier conflict.
+The breakthrough was the idea of using hyper+[/] for columns and hyper+-/= for rows — memorable shortcuts mapped to the bracket and plus/minus keys. Implementing this through BetterTouchTool revealed the [Hyperkey conflict](#known-conflict-pattern) (BTT couldn't delay in keystroke sequences either), which led to building the `keystroke-sequence` action type in Hammerspoon with `event:post(app)` to bypass the modifier clash. The Bear-style ctrl+cmd+arrow shortcuts were then added as scoped alternatives for an even more natural feel.
 
 References:
 - [Claude conversation](https://claude.ai/chat/802e77d8-2da4-4704-b2c0-45cd149d4c61) that led to discovering SheetWiz
