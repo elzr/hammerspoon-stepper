@@ -10,8 +10,9 @@
 local M = {}
 
 -- Module state
-local focusHighlight = nil
-local focusHighlightGen = 0
+local focusHighlight = nil      -- current canvas (if showing)
+local focusHighlightTimer = nil     -- 0.3s cleanup timer (stored to prevent GC)
+local focusHighlightFailsafe = nil  -- 2.0s failsafe timer (stored to prevent GC)
 local lastFocusedByUs = nil
 
 -- =============================================================================
@@ -317,29 +318,26 @@ end
 
 -- Flash a border around a window to highlight it (thicker on the focus direction side)
 function M.flashFocusHighlight(win, dir, opts)
-  -- Always clean up previous highlight
+  -- Always clean up previous highlight and cancel pending timers
   safeDeleteCanvas(focusHighlight)
   focusHighlight = nil
-
-  -- Bump generation so any pending timers from previous highlights become no-ops
-  focusHighlightGen = focusHighlightGen + 1
-  local thisGen = focusHighlightGen
+  if focusHighlightTimer then focusHighlightTimer:stop() end
+  if focusHighlightFailsafe then focusHighlightFailsafe:stop() end
 
   local frame = win:frame()
   focusHighlight = M.createBorderCanvas(frame, dir, win, opts)
 
-  -- Fade out after a brief moment
-  -- Use generation counter: if a newer highlight exists, this timer is a no-op
-  hs.timer.doAfter(0.3, function()
-    if focusHighlightGen == thisGen and focusHighlight then
+  -- Fade out after a brief moment (stored to prevent GC)
+  focusHighlightTimer = hs.timer.doAfter(0.3, function()
+    if focusHighlight then
       safeDeleteCanvas(focusHighlight)
       focusHighlight = nil
     end
   end)
 
   -- Failsafe: ensure cleanup even if something unexpected happens
-  hs.timer.doAfter(2.0, function()
-    if focusHighlightGen == thisGen and focusHighlight then
+  focusHighlightFailsafe = hs.timer.doAfter(2.0, function()
+    if focusHighlight then
       print("[flashFocusHighlight] Failsafe cleanup triggered")
       safeDeleteCanvas(focusHighlight)
       focusHighlight = nil
@@ -598,7 +596,8 @@ end
 function M.clearHighlight()
   safeDeleteCanvas(focusHighlight)
   focusHighlight = nil
-  focusHighlightGen = focusHighlightGen + 1  -- invalidate any pending timers
+  if focusHighlightTimer then focusHighlightTimer:stop(); focusHighlightTimer = nil end
+  if focusHighlightFailsafe then focusHighlightFailsafe:stop(); focusHighlightFailsafe = nil end
 end
 
 M.focusSingleWindow = focusSingleWindow

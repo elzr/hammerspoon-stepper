@@ -713,11 +713,13 @@ end
 -- Flash a thick blue border on the screen edge(s)
 -- dir can be a single direction ("left") or a table of directions ({"left", "right"})
 local edgeHighlight = nil
+local edgeHighlightTimer = nil
 flashEdgeHighlight = function(screen, dir)
   if edgeHighlight then
     edgeHighlight:delete()
     edgeHighlight = nil
   end
+  if edgeHighlightTimer then edgeHighlightTimer:stop() end
 
   local thick = 12
   local color = {red = 0.3, green = 0.8, blue = 0.4, alpha = 0.9}
@@ -766,7 +768,7 @@ flashEdgeHighlight = function(screen, dir)
 
   edgeHighlight:show()
 
-  hs.timer.doAfter(0.3, function()
+  edgeHighlightTimer = hs.timer.doAfter(0.3, function()
     if edgeHighlight then
       edgeHighlight:delete()
       edgeHighlight = nil
