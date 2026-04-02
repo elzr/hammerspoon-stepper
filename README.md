@@ -33,10 +33,10 @@ All bindings use **fn + modifier + arrow keys** (Home/End/PageUp/PageDown):
 | **shift** | Step resize | fn + shift + arrows |
 | **ctrl** | Move to screen edge | fn + ctrl + arrows |
 | **ctrl+shift** | Resize to screen edge | fn + ctrl + shift + arrows |
-| **option** | Shrink/unshrink | fn + option + arrows |
+| **option** | Shrink / max dimension | fn + option + arrows |
 | **cmd** | Focus within current screen | fn + cmd + arrows |
 | **option+cmd** | Focus across screens | fn + option + cmd + arrows |
-| **shift+option** | Maximize cycle | fn + shift + option + up |
+| **shift+option** | Maximize toggle | fn + shift + option + up |
 | **shift+option** | Center toggle | fn + shift + option + down |
 | **shift+option** | Half/third/mid-third/two-thirds cycle | fn + shift + option + left/right |
 
@@ -61,11 +61,11 @@ Moves the window to touch the specified screen edge without resizing.
 Expands the window to fill from its current position to the specified edge.
 **Reversible**: Press again when already at that edge to restore previous size.
 
-### Shrink/Grow (fn + option + arrows)
+### Shrink / Max Dimension (fn + option + arrows)
 - **left**: Toggle shrink width to minimum (press again to restore)
 - **up**: Toggle shrink height to minimum (press again to restore)
-- **right**: Restore shrunk width, or grow to right edge if not shrunk (toggle)
-- **down**: Restore shrunk height, or grow to bottom edge if not shrunk (toggle)
+- **right**: If shrunk, restore width. Otherwise toggle max width (full screen width, keep height/y)
+- **down**: If shrunk, restore height. Otherwise toggle max height (full screen height, keep width/x)
 
 ### Focus Direction (fn + cmd + arrows)
 Focus the nearest window in that direction (on the same screen):
@@ -107,11 +107,8 @@ Automatically saves and restores window positions across the 5-display desk setu
 - **Manual save**: **ctrl+option+delete** (fn+ctrl+alt+delete) — pinned save, never overwritten by autosave
 - **Manual restore**: **ctrl+option+shift+delete** (fn+ctrl+alt+shift+delete) — restores pinned save; falls back to latest autosave if no pinned save exists
 
-### Maximize Cycle (fn + shift + option + up)
-Progressive maximize:
-1. First press: maximize height (keep width and horizontal position)
-2. Second press: maximize width too (true full-screen maximize)
-3. Third press: restore previous size and position
+### Maximize Toggle (fn + shift + option + up)
+Toggle between current size/position and full-screen maximize. Press again to restore.
 
 ### Center Toggle (fn + shift + option + down)
 Progressive centering:
@@ -130,14 +127,6 @@ Cycle through edge-aligned layouts:
 ## Unassigned (Available Functions)
 
 The following operations are implemented but not currently bound to keys:
-
-### Max Height
-Expand window to full screen height while keeping width and horizontal position.
-**Reversible**: Press again to restore previous height.
-
-### Max Width
-Expand window to full screen width while keeping height and vertical position.
-**Reversible**: Press again to restore previous width.
 
 ### Compact Mode
 Shrink window to a small size and dock it at the bottom of the screen.

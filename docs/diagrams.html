@@ -342,7 +342,7 @@
         <div class="esc-item"><span class="mod kc">⇧</span><span class="name">Resize</span></div>
         <div class="esc-item edge-mod"><span class="mod kc">⌃</span><span class="name">Snap to Edge</span></div>
         <div class="esc-item edge-mod"><span class="mod kc">⌃⇧</span><span class="name">Resize to Edge</span></div>
-        <div class="esc-item"><span class="mod kc">⌥</span><span class="name">Shrink / Grow</span></div>
+        <div class="esc-item"><span class="mod kc">⌥</span><span class="name">Shrink / Max Dim</span></div>
         <div class="esc-item"><span class="mod kc">⇧⌥</span><span class="name">Layout / Max / Center</span></div>
         <div class="esc-item"><span class="mod kc">⌘</span><span class="name">Focus Same</span></div>
         <div class="esc-item"><span class="mod kc">⌥⌘</span><span class="name">Focus Other</span></div>
@@ -364,12 +364,12 @@
         <div class="ops-group-hd">Size</div>
         <div class="ops-pill"><span class="kc">⇧</span> Step Resize</div>
         <div class="ops-pill edge-mod"><span class="kc">⌃⇧</span> Resize to Edge</div>
-        <div class="ops-pill"><span class="kc">⌥</span> Shrink / Grow</div>
+        <div class="ops-pill"><span class="kc">⌥</span> Shrink / Max Dim</div>
       </div>
       <div class="ops-group">
         <div class="ops-group-hd">Layout</div>
         <div class="ops-pill"><span class="kc">⇧⌥</span><span class="arr">←→</span> Half / Third / Mid / ⅔</div>
-        <div class="ops-pill"><span class="kc">⇧⌥</span><span class="arr">↑</span> Maximize</div>
+        <div class="ops-pill"><span class="kc">⇧⌥</span><span class="arr">↑</span> Maximize Toggle</div>
         <div class="ops-pill"><span class="kc">⇧⌥</span><span class="arr">↓</span> Center</div>
       </div>
       <div class="ops-group">
@@ -464,9 +464,9 @@
     <div class="undo-note">repeat → restore size</div>
   </div>
 
-  <!-- Shrink / Grow Toggles (visual cross) -->
+  <!-- Shrink / Max Dimension Toggles (visual cross) -->
   <div class="card">
-    <h3>Shrink / Grow Toggles</h3>
+    <h3>Shrink / Max Dimension</h3>
     <div class="cross vis">
       <div class="c top">
         <div class="ms"><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;width:38%;height:18%"></div></div>
@@ -481,12 +481,12 @@
         <span class="label">before</span>
       </div>
       <div class="c right">
-        <div class="ms"><div class="eg r"></div><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;right:3%;height:52%"></div></div>
-        <span class="kc">⌥<span class="arr">→</span></span><span class="label">Grow to right</span>
+        <div class="ms"><div class="eg l"></div><div class="eg r"></div><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:2px;top:18%;right:2px;height:52%"></div></div>
+        <span class="kc">⌥<span class="arr">→</span></span><span class="label">Max width</span>
       </div>
       <div class="c bottom">
-        <div class="ms"><div class="eg b"></div><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:18%;width:38%;bottom:3%"></div></div>
-        <span class="kc">⌥<span class="arr">↓</span></span><span class="label">Grow to bottom</span>
+        <div class="ms"><div class="eg t"></div><div class="eg b"></div><div class="wo" style="left:25%;top:18%;width:38%;height:52%"></div><div class="w" style="left:25%;top:2px;width:38%;bottom:2px"></div></div>
+        <span class="kc">⌥<span class="arr">↓</span></span><span class="label">Max height</span>
       </div>
     </div>
     <div class="undo-note">repeat → restore original size</div>
@@ -537,13 +537,11 @@
     </div>
   </div>
 
-  <!-- Maximize Cycle (spatial mini screens) -->
+  <!-- Maximize Toggle (spatial mini screens) -->
   <div class="card">
-    <h3>Maximize Cycle</h3>
+    <h3>Maximize Toggle</h3>
     <div class="seq">
       <div class="state"><div class="ms"><div class="w" style="left:12%;top:15%;width:45%;height:55%"></div></div><span class="label">Normal</span></div>
-      <div class="arrow"><span class="kc">⇧⌥<span class="arr">↑</span></span>→</div>
-      <div class="state"><div class="ms"><div class="eg t"></div><div class="eg b"></div><div class="w" style="left:12%;top:2px;width:45%;bottom:2px"></div></div><span class="label">Max Height</span></div>
       <div class="arrow"><span class="kc">⇧⌥<span class="arr">↑</span></span>→</div>
       <div class="state"><div class="ms"><div class="eg t"></div><div class="eg b"></div><div class="eg l"></div><div class="eg r"></div><div class="w" style="left:2px;top:2px;right:2px;bottom:2px"></div></div><span class="label">Full Max</span></div>
       <div class="arrow"><span class="kc">⇧⌥<span class="arr">↑</span></span>→</div>

@@ -353,16 +353,15 @@ local function toggleShrink(dir)
   end)
 end
 
--- Restore shrunk dimension, or grow to edge if not shrunk (toggle)
-local function restoreOrGrow(dir)
+-- Toggle shrink or max for right/down: if shrunk → restore, else toggle max dimension
+local function toggleShrinkOrMax(dir)
   local win, frame, screen = setupWindowOperation(false)
   if not win then return end
   local winID = win:id()
 
   if dir == "right" then
-    -- Check if width is shrunk
+    -- If width is shrunk, restore it
     if shrunkWindows[winID] and shrunkWindows[winID].width then
-      -- Restore shrunk width
       instant(function()
         frame.w = shrunkWindows[winID].width
         frame.x = shrunkWindows[winID].x
@@ -374,13 +373,12 @@ local function restoreOrGrow(dir)
         shrunkWindows[winID] = nil
       end
     else
-      -- Not shrunk - resize to right edge (toggle)
-      resizeToEdge("right")
+      -- Toggle max width
+      toggleMaxWidth()
     end
   elseif dir == "down" then
-    -- Check if height is shrunk
+    -- If height is shrunk, restore it
     if shrunkWindows[winID] and shrunkWindows[winID].height then
-      -- Restore shrunk height
       instant(function()
         frame.h = shrunkWindows[winID].height
         frame.y = shrunkWindows[winID].y
@@ -392,41 +390,36 @@ local function restoreOrGrow(dir)
         shrunkWindows[winID] = nil
       end
     else
-      -- Not shrunk - resize to bottom edge (toggle)
-      resizeToEdge("down")
+      -- Toggle max height
+      toggleMaxHeight()
     end
   end
 end
 
--- Cycle maximize: max height → max height+width → restore
-local function cycleMaximize()
+-- Toggle full maximize: normal ↔ full screen
+local function toggleMaximize()
   local win, frame, screen = setupWindowOperation(false)  -- don't save yet
   if not win then return end
 
   local tolerance = 10
-  local isMaxHeight = math.abs(frame.y - screen.y) < tolerance and
+  local isMaximized = math.abs(frame.x - screen.x) < tolerance and
+                      math.abs(frame.y - screen.y) < tolerance and
+                      math.abs(frame.w - screen.w) < tolerance and
                       math.abs(frame.h - screen.h) < tolerance
-  local isMaxWidth = math.abs(frame.x - screen.x) < tolerance and
-                     math.abs(frame.w - screen.w) < tolerance
 
-  if isMaxHeight and isMaxWidth then
-    -- Fully maximized → restore
-    if spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
-      local lastPos = spoon.WinWin._lastPositions[1]
-      frame.x = lastPos.x or frame.x
-      frame.y = lastPos.y or frame.y
-      frame.w = lastPos.w or frame.w
-      frame.h = lastPos.h or frame.h
-    end
-  elseif isMaxHeight then
-    -- Max height only → add max width (true maximize)
-    frame.x = screen.x
-    frame.w = screen.w
+  if isMaximized and spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
+    -- Maximized → restore
+    local lastPos = spoon.WinWin._lastPositions[1]
+    frame.x = lastPos.x or frame.x
+    frame.y = lastPos.y or frame.y
+    frame.w = lastPos.w or frame.w
+    frame.h = lastPos.h or frame.h
   else
-    -- Normal → max height (save original first)
+    -- Normal → maximize (save original first)
     setupWindowOperation(true)
-    flashEdgeHighlight(screen, {"up", "down"})
+    frame.x = screen.x
     frame.y = screen.y
+    frame.w = screen.w
     frame.h = screen.h
   end
 
@@ -816,8 +809,8 @@ end
 -- Special bindings for option (shrink/grow)
 bindWithRepeat({"option"}, "home", function() toggleShrink("left") end)
 bindWithRepeat({"option"}, "pageup", function() toggleShrink("up") end)
-bindWithRepeat({"option"}, "end", function() restoreOrGrow("right") end)
-bindWithRepeat({"option"}, "pagedown", function() restoreOrGrow("down") end)
+bindWithRepeat({"option"}, "end", function() toggleShrinkOrMax("right") end)
+bindWithRepeat({"option"}, "pagedown", function() toggleShrinkOrMax("down") end)
 
 -- Special bindings for cmd (focus direction on same screen)
 bindWithRepeat({"cmd"}, "home", function() focus.focusDirection("left") end)
@@ -828,7 +821,7 @@ bindWithRepeat({"cmd"}, "pagedown", function() focus.focusDirection("down") end)
 -- Special bindings for shift+option (center/maximize/half-third)
 bindWithRepeat({"shift", "option"}, "home", function() cycleHalfThird("left") end)
 bindWithRepeat({"shift", "option"}, "end", function() cycleHalfThird("right") end)
-bindWithRepeat({"shift", "option"}, "pageup", cycleMaximize)
+bindWithRepeat({"shift", "option"}, "pageup", toggleMaximize)
 bindWithRepeat({"shift", "option"}, "pagedown", toggleCenter)
 
 -- Special bindings for option+cmd (focus across screens)
@@ -890,7 +883,7 @@ hs.hotkey.bind({"ctrl", "alt"}, "left", function() moveToDisplay("left") end)
 hs.hotkey.bind({"ctrl", "alt"}, "right", function() moveToDisplay("right") end)
 hs.hotkey.bind({"ctrl", "alt"}, "return", function() moveToDisplay("center") end)
 
--- Unassigned functions still available: toggleMaxHeight, toggleMaxWidth, toggleFullScreen, toggleCompact
+-- Unassigned functions still available: toggleFullScreen, toggleCompact
 
 -- Show focus highlight on current window (fn+cmd+delete = forwarddelete)
 hs.hotkey.bind({"cmd"}, "forwarddelete", function()
