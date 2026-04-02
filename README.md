@@ -94,9 +94,11 @@ Move the focused window directly to a specific display:
 - **ctrl+option+right**: Right
 - **ctrl+option+return**: Middle center
 
-These are direct arrow keys (no fn needed). The window's offset from the screen origin is preserved. If the window would extend beyond the target screen, it's clamped to stay fully visible. If too large, it shrinks to fit — the original dimensions are remembered and automatically restored when moving to a screen where they fit.
+These are direct arrow keys (no fn needed). Each window remembers its position and size on every screen it visits — moving back to a screen restores the window exactly where it was last time. On first visit, proportional mapping with edge snapping places the window sensibly; that position is then remembered for future visits.
 
-**Repeat to undo**: pressing the same combo again within 1 hour moves the window back to its original screen, position, and size. A different combo starts a new move (overwriting the undo memory for that window).
+Position memory has two tiers: **session** (by window ID, lost on reload) and **persistent** (by app+title, saved to `data/screen-memory.json`, survives reloads). Bear notes and Chrome calendar windows benefit from persistent memory across sessions. Entries older than 30 days are pruned automatically.
+
+**Repeat to undo**: pressing the same combo again within 1 hour moves the window back to its original screen and position. A different combo starts a new move (overwriting the undo memory for that window).
 
 ### Layout Save/Restore
 

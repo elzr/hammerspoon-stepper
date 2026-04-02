@@ -3,23 +3,13 @@
 -- =============================================================================
 -- Provides direct keyboard shortcuts to move the focused window to a specific
 -- screen identified by spatial position (auto-detected from built-in display).
--- Preserves window position offset, shrinks to fit smaller screens, and
--- remembers "natural size" to restore when moving to a screen where it fits.
+-- Uses screenmemory for per-screen position recall; falls back to proportional
+-- mapping with edge snapping on first visit.
 
 local M = {}
 
--- Natural size memory: winID -> {w, h}
--- Stores original dimensions before cross-screen shrinking.
--- Write-once per window: set on first shrink, preserved until restored.
-local naturalSize = {}
-
--- Natural position memory: winID -> {offsetX, offsetY}
--- Stores original screen-relative offset before cross-screen clamping.
--- Write-once per window: set on first clamp, preserved until restored.
-local naturalPosition = {}
-
--- Optional name overrides: role -> Lua pattern matching screen name
--- e.g., {center = "DELL U2723QE"}
+-- Optional module references (set during init)
+local screenmemory = nil
 local nameOverrides = {}
 
 -- =========================================================================
@@ -130,57 +120,70 @@ function M.moveToScreen(position, setupWindowOperation, instant, flashFocusHighl
   local currentScreen = win:screen()
   if currentScreen:id() == targetScreen:id() then return end
 
+  -- Determine departure screen position name (reverse lookup)
+  local departurePos = nil
+  for pos, scr in pairs(map) do
+    if scr:id() == currentScreen:id() then
+      departurePos = pos
+      break
+    end
+  end
+
+  -- Save departure memory BEFORE anything changes
+  if screenmemory and departurePos then
+    screenmemory.saveDeparture(win, departurePos)
+  end
+
   setupWindowOperation(true)
 
   local winFrame = win:frame()
   local sourceFrame = currentScreen:frame()
   local targetFrame = targetScreen:frame()
-  local winID = win:id()
 
-  -- Step 1: Determine target dimensions
-  local targetW, targetH
+  -- Check for remembered position at target screen
+  local remembered = screenmemory and screenmemory.lookupArrival(win, position)
+  local newFrame
 
-  if naturalSize[winID]
-     and naturalSize[winID].w <= targetFrame.w
-     and naturalSize[winID].h <= targetFrame.h then
-    -- Natural size fits: restore it
-    targetW = naturalSize[winID].w
-    targetH = naturalSize[winID].h
-    naturalSize[winID] = nil
-  else
-    targetW = winFrame.w
-    targetH = winFrame.h
+  if remembered then
+    -- Apply remembered relative frame to target screen
+    local targetX = targetFrame.x + remembered.x * targetFrame.w
+    local targetY = targetFrame.y + remembered.y * targetFrame.h
+    local targetW = remembered.w * targetFrame.w
+    local targetH = remembered.h * targetFrame.h
 
-    local needsShrink = targetW > targetFrame.w or targetH > targetFrame.h
-
-    if needsShrink and not naturalSize[winID] then
-      naturalSize[winID] = {w = winFrame.w, h = winFrame.h}
-    end
-
+    -- Clamp to screen bounds (screen may have changed resolution)
     if targetW > targetFrame.w then targetW = targetFrame.w end
     if targetH > targetFrame.h then targetH = targetFrame.h end
-  end
+    if targetX + targetW > targetFrame.x + targetFrame.w then
+      targetX = targetFrame.x + targetFrame.w - targetW
+    end
+    if targetX < targetFrame.x then targetX = targetFrame.x end
+    if targetY + targetH > targetFrame.y + targetFrame.h then
+      targetY = targetFrame.y + targetFrame.h - targetH
+    end
+    if targetY < targetFrame.y then targetY = targetFrame.y end
 
-  -- Step 2: Position mapping
-  local snap = 5
-  local offsetX = winFrame.x - sourceFrame.x
-  local offsetY = winFrame.y - sourceFrame.y
-  local targetX, targetY
-
-  -- Try to restore natural position if it fits on target screen
-  local natPos = naturalPosition[winID]
-  if natPos
-     and natPos.offsetX >= 0 and natPos.offsetX + targetW <= targetFrame.w
-     and natPos.offsetY >= 0 and natPos.offsetY + targetH <= targetFrame.h then
-    targetX = targetFrame.x + natPos.offsetX
-    targetY = targetFrame.y + natPos.offsetY
-    naturalPosition[winID] = nil
+    newFrame = {
+      x = math.floor(targetX + 0.5),
+      y = math.floor(targetY + 0.5),
+      w = math.floor(targetW + 0.5),
+      h = math.floor(targetH + 0.5),
+    }
   else
-    -- Proportional mapping with edge snapping
+    -- First visit: proportional mapping with edge snapping
+    local targetW = winFrame.w
+    local targetH = winFrame.h
+    if targetW > targetFrame.w then targetW = targetFrame.w end
+    if targetH > targetFrame.h then targetH = targetFrame.h end
+
+    local snap = 5
+    local offsetX = winFrame.x - sourceFrame.x
+    local offsetY = winFrame.y - sourceFrame.y
 
     -- X axis: snap right edge, or proportional
+    local targetX
     local atRight = (winFrame.x + winFrame.w >= sourceFrame.x + sourceFrame.w - snap)
-        and (offsetX > snap)  -- not also touching left
+        and (offsetX > snap)
     if atRight then
       targetX = targetFrame.x + targetFrame.w - targetW
     else
@@ -188,46 +191,38 @@ function M.moveToScreen(position, setupWindowOperation, instant, flashFocusHighl
     end
 
     -- Y axis: snap bottom edge, or proportional
+    local targetY
     local atBottom = (winFrame.y + winFrame.h >= sourceFrame.y + sourceFrame.h - snap)
-        and (offsetY > snap)  -- not also touching top
+        and (offsetY > snap)
     if atBottom then
       targetY = targetFrame.y + targetFrame.h - targetH
     else
       targetY = targetFrame.y + (offsetY / sourceFrame.h) * targetFrame.h
     end
 
-    -- Step 3: Clamp to target screen bounds (store natural position first)
-    local needsClamp = (targetX + targetW > targetFrame.x + targetFrame.w)
-        or (targetX < targetFrame.x)
-        or (targetY + targetH > targetFrame.y + targetFrame.h)
-        or (targetY < targetFrame.y)
-
-    if needsClamp and not naturalPosition[winID] then
-      naturalPosition[winID] = {offsetX = offsetX, offsetY = offsetY}
-    end
-
+    -- Clamp to target screen bounds
     if targetX + targetW > targetFrame.x + targetFrame.w then
       targetX = targetFrame.x + targetFrame.w - targetW
     end
-    if targetX < targetFrame.x then
-      targetX = targetFrame.x
-    end
+    if targetX < targetFrame.x then targetX = targetFrame.x end
     if targetY + targetH > targetFrame.y + targetFrame.h then
       targetY = targetFrame.y + targetFrame.h - targetH
     end
-    if targetY < targetFrame.y then
-      targetY = targetFrame.y
-    end
+    if targetY < targetFrame.y then targetY = targetFrame.y end
+
+    newFrame = {x = targetX, y = targetY, w = targetW, h = targetH}
   end
 
-  -- Step 4: Apply
-  local newFrame = {x = targetX, y = targetY, w = targetW, h = targetH}
   instant(function() win:setFrame(newFrame) end)
 
   -- Flash focus highlight so user can see where the window landed
   if flashFocusHighlight then
     flashFocusHighlight(win, nil)
   end
+end
+
+function M.setScreenMemory(mod)
+  screenmemory = mod
 end
 
 function M.setNameOverrides(overrides)

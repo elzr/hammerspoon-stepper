@@ -42,8 +42,9 @@ local LOG_RETENTION = 600            -- 10 minutes of log entries
 local ring1mIndex = 0
 local ring10mIndex = 0
 
--- screenswitch module reference (set during init)
+-- Module references (set during init)
 local screenswitch = nil
+local screenmemory = nil
 local triggerTimer = nil
 
 -- Retry state — polls for windows that weren't visible at restore time
@@ -458,6 +459,11 @@ function M.save()
 
   -- Rotate into 1-minute backup ring
   rotateRing1m()
+
+  -- Update per-screen position memory from saved entries
+  if screenmemory then
+    screenmemory.updateFromLayout(entries)
+  end
 end
 
 -- ---------------------------------------------------------------------------
@@ -606,12 +612,15 @@ function M.restoreFromJSON(json, label)
     end
   end
 
-  -- Phase 1: restore frames
-  local savedCount = 0
+  -- Phase 1: restore frames (skip windows already in position)
+  local movedCount = 0
+  local unchangedCount = 0
   local skippedCount = #entries - #pairs_list
   local origDuration = hs.window.animationDuration
   hs.window.animationDuration = 0
   local restoreDetails = {}
+  local movedPairs = {}  -- only windows that actually moved (for z-order replay)
+  local FRAME_TOL = 3    -- pixels — accounts for Retina subpixel rounding
 
   for _, p in ipairs(pairs_list) do
     local win, entry = p.win, p.entry
@@ -625,8 +634,26 @@ function M.restoreFromJSON(json, label)
         targetFrame.w, targetFrame.h))
     end
 
-    win:setFrame(targetFrame)
-    savedCount = savedCount + 1
+    -- Check if window is already where it should be
+    local cf = win:frame()
+    local alreadyCorrect =
+      math.abs(cf.x - targetFrame.x) <= FRAME_TOL and
+      math.abs(cf.y - targetFrame.y) <= FRAME_TOL and
+      math.abs(cf.w - targetFrame.w) <= FRAME_TOL and
+      math.abs(cf.h - targetFrame.h) <= FRAME_TOL
+
+    if alreadyCorrect then
+      unchangedCount = unchangedCount + 1
+    else
+      win:setFrame(targetFrame)
+      movedCount = movedCount + 1
+      table.insert(movedPairs, p)
+    end
+
+    -- Seed per-screen memory from restored position
+    if screenmemory and entry.screenPosition then
+      screenmemory.seedFromRestore(win, entry.screenPosition, entry.frameRel)
+    end
 
     -- Mark as verified in position protection (only for reliable matches).
     -- Index-fallback matches may have grabbed the wrong window — keep
@@ -639,16 +666,19 @@ function M.restoreFromJSON(json, label)
 
   hs.window.animationDuration = origDuration
 
-  -- Phase 2: restore z-order (back-to-front = reverse array order)
-  for i = #pairs_list, 1, -1 do
-    pairs_list[i].win:focus()
+  -- Phase 2: restore z-order only for windows that actually moved
+  for i = #movedPairs, 1, -1 do
+    movedPairs[i].win:focus()
   end
 
-  logEvent("restore", string.format("%d restored, %d skipped (from %s)", savedCount, skippedCount, label or "?"))
+  logEvent("restore", string.format(
+    "%d moved, %d already correct, %d unmatched (from %s)",
+    movedCount, unchangedCount, skippedCount, label or "?"))
   for _, detail in ipairs(restoreDetails) do
     logEvent("restore-bear", detail)
   end
-  print(string.format("[layout.restore] Restored %d windows, skipped %d (from %s)", savedCount, skippedCount, label or "?"))
+  print(string.format("[layout.restore] %d moved, %d already correct, %d unmatched (from %s)",
+    movedCount, unchangedCount, skippedCount, label or "?"))
 
   return misses
 end
@@ -720,6 +750,10 @@ local function retryMisses(misses, label, attempt)
         local targetFrame = computeTargetFrame(entry)
         win:setFrame(targetFrame)
         found = found + 1
+        -- Seed per-screen memory from retry-restored position
+        if screenmemory and entry.screenPosition then
+          screenmemory.seedFromRestore(win, entry.screenPosition, entry.frameRel)
+        end
         -- Remove from protection (verified)
         protectedEntries[protectionKey(entry.app, entry.title)] = nil
         logEvent("retry-restored", string.format(
@@ -954,7 +988,7 @@ end
 -- M.onWake() — compare layout after wake, auto-restore if windows drifted
 -- ---------------------------------------------------------------------------
 
-local WAKE_SETTLE_DELAY = 3  -- seconds for displays/windows to stabilize after wake
+local WAKE_SETTLE_DELAY = 1  -- seconds for displays/windows to stabilize after wake
 
 function M.onWake()
   if #hs.screen.allScreens() ~= TARGET_DISPLAY_COUNT then
@@ -1027,6 +1061,7 @@ end
 function M.init(opts)
   opts = opts or {}
   screenswitch = opts.screenswitch
+  screenmemory = opts.screenmemory
 
   lastScreenCount = #hs.screen.allScreens()
 

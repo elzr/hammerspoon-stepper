@@ -13,6 +13,7 @@ stepper/
 │   ├── focus.lua         # Focus navigation, occlusion detection, visual highlights
 │   ├── mousemove.lua     # fn+mouse move/resize windows
 │   ├── screenswitch.lua  # Move window to specific display by position
+│   ├── screenmemory.lua  # Per-screen window position memory (session + persistent)
 │   └── bear-hud.lua      # Bear note HUD with caret/scroll persistence
 ├── data/
 │   ├── bear-notes.jsonc   # Note hotkey configuration

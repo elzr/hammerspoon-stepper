@@ -6,6 +6,7 @@ local projectRoot = scriptPath .. "../"
 local focus = dofile(scriptPath .. "focus.lua")
 local mousemove = dofile(scriptPath .. "mousemove.lua")
 local screenswitch = dofile(scriptPath .. "screenswitch.lua")
+local screenmemory = dofile(scriptPath .. "screenmemory.lua")
 bear_hud = dofile(scriptPath .. "bear-hud.lua")
 layout = dofile(scriptPath .. "layout.lua")
 
@@ -848,6 +849,15 @@ local function moveToDisplay(position)
   if undo and undo.position == position
      and (hs.timer.secondsSinceEpoch() - undo.timestamp) < DISPLAY_UNDO_TTL then
     displayUndo[winID] = nil
+    -- Save departure memory for current screen before undo
+    local map = screenswitch.buildScreenMap()
+    local currentScreen = win:screen()
+    for pos, scr in pairs(map) do
+      if scr:id() == currentScreen:id() then
+        screenmemory.saveDeparture(win, pos)
+        break
+      end
+    end
     setupWindowOperation(true)
     instant(function() win:setFrame(undo.frame) end)
     focus.flashFocusHighlight(win, nil)
@@ -906,8 +916,12 @@ mousemove.init({
 -- Initialize Bear HUD (note hotkeys + caret position persistence)
 bear_hud.init(projectRoot, focus)
 
+-- Initialize per-screen window position memory
+screenmemory.init()
+screenswitch.setScreenMemory(screenmemory)
+
 -- Initialize layout auto-save, screen watcher, and Lunar name sync
-layout.init({screenswitch = screenswitch})
+layout.init({screenswitch = screenswitch, screenmemory = screenmemory})
 
 -- Manual layout save: fn+ctrl+alt+delete (pinned, survives autosave overwrites)
 hs.hotkey.bind({"ctrl", "alt"}, "forwarddelete", layout.manualSave)
