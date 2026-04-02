@@ -353,6 +353,56 @@ local function toggleShrink(dir)
   end)
 end
 
+-- Toggle max height (keep width/x, expand height to full screen)
+local function toggleMaxHeight()
+  local win, frame, screen = setupWindowOperation(false)
+  if not win then return end
+
+  local tolerance = 10
+  local isMaxHeight = math.abs(frame.y - screen.y) < tolerance and
+                      math.abs(frame.h - screen.h) < tolerance
+
+  if isMaxHeight and spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
+    -- Restore previous height/y
+    local lastPos = spoon.WinWin._lastPositions[1]
+    frame.y = lastPos.y or frame.y
+    frame.h = lastPos.h or frame.h
+  else
+    -- Save current position, then maximize height
+    setupWindowOperation(true)
+    flashEdgeHighlight(screen, {"up", "down"})
+    frame.y = screen.y
+    frame.h = screen.h
+  end
+
+  instant(function() win:setFrame(frame) end)
+end
+
+-- Toggle max width (keep height/y, expand width to full screen)
+local function toggleMaxWidth()
+  local win, frame, screen = setupWindowOperation(false)
+  if not win then return end
+
+  local tolerance = 10
+  local isMaxWidth = math.abs(frame.x - screen.x) < tolerance and
+                     math.abs(frame.w - screen.w) < tolerance
+
+  if isMaxWidth and spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
+    -- Restore previous width/x
+    local lastPos = spoon.WinWin._lastPositions[1]
+    frame.x = lastPos.x or frame.x
+    frame.w = lastPos.w or frame.w
+  else
+    -- Save current position, then maximize width
+    setupWindowOperation(true)
+    flashEdgeHighlight(screen, {"left", "right"})
+    frame.x = screen.x
+    frame.w = screen.w
+  end
+
+  instant(function() win:setFrame(frame) end)
+end
+
 -- Toggle shrink or max for right/down: if shrunk → restore, else toggle max dimension
 local function toggleShrinkOrMax(dir)
   local win, frame, screen = setupWindowOperation(false)
@@ -537,60 +587,10 @@ local function cycleHalfThird(dir)
   instant(function() win:setFrame(frame) end)
 end
 
--- Toggle max height (keep width/x, expand height to full screen)
-local function toggleMaxHeight()
-  local win, frame, screen = setupWindowOperation(false)
-  if not win then return end
-
-  local tolerance = 10
-  local isMaxHeight = math.abs(frame.y - screen.y) < tolerance and
-                      math.abs(frame.h - screen.h) < tolerance
-
-  if isMaxHeight and spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
-    -- Restore previous height/y
-    local lastPos = spoon.WinWin._lastPositions[1]
-    frame.y = lastPos.y or frame.y
-    frame.h = lastPos.h or frame.h
-  else
-    -- Save current position, then maximize height
-    setupWindowOperation(true)
-    flashEdgeHighlight(screen, {"up", "down"})
-    frame.y = screen.y
-    frame.h = screen.h
-  end
-
-  instant(function() win:setFrame(frame) end)
-end
-
 -- Toggle native macOS fullscreen
 local function toggleFullScreen()
   local win = hs.window.focusedWindow()
   if win then win:toggleFullScreen() end
-end
-
--- Toggle max width (keep height/y, expand width to full screen)
-local function toggleMaxWidth()
-  local win, frame, screen = setupWindowOperation(false)
-  if not win then return end
-
-  local tolerance = 10
-  local isMaxWidth = math.abs(frame.x - screen.x) < tolerance and
-                     math.abs(frame.w - screen.w) < tolerance
-
-  if isMaxWidth and spoon.WinWin._lastPositions and spoon.WinWin._lastPositions[1] then
-    -- Restore previous width/x
-    local lastPos = spoon.WinWin._lastPositions[1]
-    frame.x = lastPos.x or frame.x
-    frame.w = lastPos.w or frame.w
-  else
-    -- Save current position, then maximize width
-    setupWindowOperation(true)
-    flashEdgeHighlight(screen, {"left", "right"})
-    frame.x = screen.x
-    frame.w = screen.w
-  end
-
-  instant(function() win:setFrame(frame) end)
 end
 
 -- Toggle compact/PiP mode (shrink to min size, stack at bottom of screen)
