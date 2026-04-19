@@ -15,6 +15,7 @@ local mousemove = dofile(scriptPath .. "mousemove.lua")
 local screenswitch = dofile(scriptPath .. "screenswitch.lua")
 local screenmemory = dofile(scriptPath .. "screenmemory.lua")
 bear_hud = dofile(scriptPath .. "bear-hud.lua")
+bear_paste = dofile(scriptPath .. "bear-paste.lua")
 layout = dofile(scriptPath .. "layout.lua")
 
 -- Clean up any orphaned focus highlights from previous session
@@ -953,6 +954,9 @@ mousemove.init({
 
 -- Initialize Bear HUD (note hotkeys + caret position persistence)
 bear_hud.init(projectRoot, focus)
+
+-- L008: intercept ⌘V in Bear, auto-shrink pasted images to 150px thumbnails
+bear_paste.init()
 
 -- Initialize per-screen window position memory
 screenmemory.init()
