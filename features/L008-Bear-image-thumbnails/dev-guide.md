@@ -86,7 +86,7 @@ Three tiers, in order of increasing trust:
 
 ## Dead ends we explored
 
-Documented so the next person doesn't retrace them. All of these were implemented in this session (see [scripts/bear-ax-probe.lua](scripts/bear-ax-probe.lua) for the probe that generated the data and the F027 case study at [case-2026-04-19-silent-wins-bear-ax-embeds.md](https://fleet.internal/features/F027-worldclass-code-debugging/case-2026-04-19-silent-wins-bear-ax-embeds/) for the full post-mortem).
+Documented so the next person doesn't retrace them. All of these were implemented in this session (see [scripts/bear-ax-probe.lua](scripts/bear-ax-probe.lua) for the probe that generated the data and the F027 case study at [case-2026-04-19-silent-wins-bear-ax-embeds.md](https://fleet.internal/features/F027-worldclass-code-debugging/case-2026-04-19-silent-wins-bear-ax-embeds.md) for the full post-mortem).
 
 ### 1. Event tap at keyDown + deferred AX write
 
@@ -108,7 +108,7 @@ Skipped AX entirely, typed `<!-- {"width":150} -->` as a sequence of keystrokes.
 
 Attached the observer to the currently-focused AXTextArea at startup. Silently bailed when the focused element wasn't the textarea (sidebar, search field, tag editor). Fixed by moving to app-level attachment.
 
-==🟣The meta-lesson==: six attempts, six identical "failure" signatures, ==all six were actually succeeding==. The instrument was broken, not the system. See the [case study](https://fleet.internal/features/F027-worldclass-code-debugging/case-2026-04-19-silent-wins-bear-ax-embeds/).
+==🟣The meta-lesson==: six attempts, six identical "failure" signatures, ==all six were actually succeeding==. The instrument was broken, not the system. See the [case study](https://fleet.internal/features/F027-worldclass-code-debugging/case-2026-04-19-silent-wins-bear-ax-embeds.md).
 
 ## Gotchas & edge cases
 

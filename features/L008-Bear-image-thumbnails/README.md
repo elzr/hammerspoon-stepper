@@ -6,7 +6,7 @@
 
 ## The twist worth knowing
 
-The implementation works — we just spent an hour thinking it didn't because our success check was wrong. See the [F027 case study](https://fleet.internal/features/F027-worldclass-code-debugging/case-2026-04-19-silent-wins-bear-ax-embeds/) on "silent wins." Short version: Bear summarizes every embed as a single `￼` in the AX layer, so adding a width comment doesn't grow `AXValue` — we kept reporting failure on writes that were actually landing. Verify visually, not by length delta. Full details and other paths we tried in the [dev-guide](dev-guide.md).
+The implementation works — we just spent an hour thinking it didn't because our success check was wrong. See the [F027 case study](https://fleet.internal/features/F027-worldclass-code-debugging/case-2026-04-19-silent-wins-bear-ax-embeds.md) on "silent wins." Short version: Bear summarizes every embed as a single `￼` in the AX layer, so adding a width comment doesn't grow `AXValue` — we kept reporting failure on writes that were actually landing. Verify visually, not by length delta. Full details and other paths we tried in the [dev-guide](dev-guide.md).
 
 ## Contents
 - [The twist worth knowing](#the-twist-worth-knowing)
@@ -14,8 +14,7 @@ The implementation works — we just spent an hour thinking it didn't because ou
 - [BTT JS bugs (fixed — two of them)](#btt-js-bugs-fixed--two-of-them)
 - [Bear "select-just-the-embed" anomaly](#bear-select-just-the-embed-anomaly)
 - [Design decisions](#design-decisions)
-- [Open questions to validate](#open-questions-to-validate)
-- [TDD plan](#tdd-plan)
+- [Undo cheat sheet](#undo-cheat-sheet)
 - [Key files](#key-files)
 
 See [dev-guide.md](dev-guide.md) for the implementation deep-dive.
@@ -67,34 +66,9 @@ When you select ==🟣only== an image in Bear (no surrounding text) and run `⌥
 
 ==🟣Attachment types in scope==: ==🟢images and PDFs only==. Other Bear attachments are rendered as fixed-size mini-cards (no width knob), so they're out of scope.
 
-## Open questions to validate
+## Undo cheat sheet
 
-1. ==🔴Does `AXTextArea.value` return raw markdown `![](path)` after a paste, or the rendered file URL?== Must test before building. If it returns URLs we need a different approach (maybe clipboard snooping — the raw clipboard should still be the original content).
-2. ==🔵Paste timing== — how long does Bear take to ingest a pasted image (copy from Finder, screenshot, etc.) into its attachment store and insert the markdown? Poll-based waiting vs. fixed delay.
-3. ==🔵Bear-only detection== — fast + deterministic check that frontmost app is Bear. `hs.application.frontmostApplication():bundleID() == "net.shinyfrog.bear"` should be fine.
-4. ==🔵Content-type check== — after paste, is the new content an image/PDF markdown block? If not, do nothing and don't touch the text.
-5. ==🔵Kill switch== — toggle hotkey or env flag so a misbehaving interceptor can be disabled without a full Hammerspoon reload.
-
-## TDD plan
-
-==🟢Red/green==, split into pure (easy) and integration (manual harness):
-
-**Pure Lua module — `lua/bear-thumbnails.lua` (TDD)**
-- `M.resize(text, width) → newText` — a Lua port of the BTT regex logic
-- Test file with RED cases FIRST:
-  - image with no comment → add width
-  - image with existing 300px comment → replace with 150
-  - image with non-width comment → preserve or drop (design call — lean preserve)
-  - image already at target width → no-op (idempotent)
-  - PDF with each of the 3 states
-  - plain text with no media → unchanged (no-op)
-  - multiple embeds in one blob → all resized
-- Implement until green. Run tests with plain `lua` or `busted` if we pick it up.
-
-**Integration harness — manual/reproducible**
-- `scripts/probe-bear-ax.lua` — prints `AXTextArea.value` before and after a paste, answering open question #1.
-- `scripts/paste-timing.lua` — measures latency from `cmd+V` synthesis to text appearing in AX.
-- These are one-off diagnostic scripts; keep them in the feature folder so we can re-run when Bear updates.
+==🟢One `⌘z` after a paste removes just the width comment==, leaving the image at full size. A ==🟣second `⌘z`== removes the image entirely. Useful: if you pasted something you want at full size, one `⌘z` gives you that without re-pasting.
 
 ## Key files
 
@@ -103,4 +77,4 @@ When you select ==🟣only== an image in Bear (no surrounding text) and run `⌥
 - [btt-resize-thumbnails.js](btt-resize-thumbnails.js) — the patched JS for BetterTouchTool (drop-in replacement for the current action)
 - [test-btt-versions.js](test-btt-versions.js) — original vs fixed side-by-side; `node test-btt-versions.js`
 - [scripts/bear-ax-probe.lua](scripts/bear-ax-probe.lua) — diagnostic probe for exploring Bear's AX tree (load in HS console via `dofile(...)`)
-- [F027 case study](https://fleet.internal/features/F027-worldclass-code-debugging/case-2026-04-19-silent-wins-bear-ax-embeds/) — the debugging post-mortem on silent wins
+- [F027 case study](https://fleet.internal/features/F027-worldclass-code-debugging/case-2026-04-19-silent-wins-bear-ax-embeds.md) — the debugging post-mortem on silent wins
