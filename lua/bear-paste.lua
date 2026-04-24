@@ -61,6 +61,7 @@ local UTF8_OBJ_REPL = "\239\191\188" -- U+FFFC in UTF-8
 
 local observer = nil
 local intentTap = nil                -- hs.eventtap for paste-intent signals
+local appWatcher = nil               -- hs.application.watcher for Bear launch/terminate (rebinds observer on PID change)
 local lastTa = nil                   -- last textarea we saw (AX element reference)
 local lastCount = nil                -- count of ￼ placeholders in that textarea's last-seen value
 local recentCmdVAt = nil             -- timestamp of last ⌘V with Bear frontmost
@@ -216,36 +217,9 @@ local function onKeyDown(event)
   return false
 end
 
-function M.init()
-  M.stop()
-  local bear = hs.application.get("Bear")
-  if not bear then
-    logger.w("Bear not running at init; restart Hammerspoon after launching Bear")
-    return
-  end
-
-  -- AX observer for the paste state-change.
-  observer = hs.axuielement.observer.new(bear:pid())
-  observer:callback(onObserverFire)
-  local appEl = hs.axuielement.applicationElement(bear)
-  local ok = pcall(function()
-    observer:addWatcher(appEl, "AXSelectedTextChanged")
-  end)
-  if not ok then
-    logger.w("failed to addWatcher on Bear app element")
-    observer = nil
-    return
-  end
-  observer:start()
-
-  -- Eventtap for paste-intent signals.
-  intentTap = hs.eventtap.new({ hs.eventtap.event.types.keyDown }, onKeyDown)
-  intentTap:start()
-
-  logger.i("initialized (observer + intent tap)")
-end
-
-function M.stop()
+-- Tear down Bear-specific hooks (observer + intent tap). The app watcher
+-- stays alive so we can re-hook if Bear relaunches.
+local function teardownHooks()
   if observer then
     pcall(function() observer:stop() end)
     observer = nil
@@ -260,6 +234,63 @@ function M.stop()
   recentPasteAppAt = nil
   pasteWatchStartedAt = nil
   inserting = false
+end
+
+-- Bind AX observer + intent eventtap to a running Bear instance. Called
+-- from M.init() (if Bear is already running) and from the app watcher on
+-- Bear launch. AX observers are bound to a PID at creation — if Bear
+-- restarts, the old observer silently stops firing, so we must rebind.
+local function setupHooks(bear)
+  teardownHooks()
+
+  observer = hs.axuielement.observer.new(bear:pid())
+  observer:callback(onObserverFire)
+  local appEl = hs.axuielement.applicationElement(bear)
+  local ok = pcall(function()
+    observer:addWatcher(appEl, "AXSelectedTextChanged")
+  end)
+  if not ok then
+    logger.w("failed to addWatcher on Bear app element")
+    observer = nil
+    return
+  end
+  observer:start()
+
+  intentTap = hs.eventtap.new({ hs.eventtap.event.types.keyDown }, onKeyDown)
+  intentTap:start()
+
+  logger.i(string.format("hooks bound (Bear pid=%d)", bear:pid()))
+end
+
+function M.init()
+  M.stop()
+
+  appWatcher = hs.application.watcher.new(function(_appName, eventType, app)
+    if not app or app:bundleID() ~= BEAR_BUNDLE then return end
+    if eventType == hs.application.watcher.launched then
+      logger.i("Bear launched, rebinding hooks")
+      setupHooks(app)
+    elseif eventType == hs.application.watcher.terminated then
+      logger.i("Bear terminated, releasing hooks")
+      teardownHooks()
+    end
+  end)
+  appWatcher:start()
+
+  local bear = hs.application.get("Bear")
+  if bear then
+    setupHooks(bear)
+  else
+    logger.w("Bear not running; will hook on launch")
+  end
+end
+
+function M.stop()
+  teardownHooks()
+  if appWatcher then
+    pcall(function() appWatcher:stop() end)
+    appWatcher = nil
+  end
 end
 
 return M
