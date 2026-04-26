@@ -170,10 +170,11 @@ local function tryRestore(win, screen)
   local preserveOnClose = APP_PRESERVE_ON_CLOSE[app]
 
   if hasPersistedAbs and not liveLooksSqueezed and not preserveOnClose then
-    -- Fresh window opened (e.g., new Chrome tab using the same title).
-    -- Drop the stale persistent entry and start clean.
-    print(string.format("[ofsr-restore] %q dropped (looks fresh, app not preserved)",
-      key:gsub("\n", ":")))
+    print(string.format(
+      "[ofsr-restore] %q dropped — live=%dx%d differs from restored=%dx%d (looks fresh, app not preserved)",
+      key:gsub("\n", ":"),
+      math.floor(live.w + 0.5), math.floor(live.h + 0.5),
+      math.floor(restoredVisible.w + 0.5), math.floor(restoredVisible.h + 0.5)))
     M.persistentMap[key] = nil
     scheduleWrite()
     return nil
@@ -181,9 +182,15 @@ local function tryRestore(win, screen)
 
   if not liveLooksSqueezed then
     win:setFrame(restoredVisible)
-    print(string.format("[ofsr-restore] %q applied (re-squeezing)", key:gsub("\n", ":")))
+    print(string.format(
+      "[ofsr-restore] %q applied (re-squeezing) — live=%dx%d → restored=%dx%d",
+      key:gsub("\n", ":"),
+      math.floor(live.w + 0.5), math.floor(live.h + 0.5),
+      math.floor(restoredVisible.w + 0.5), math.floor(restoredVisible.h + 0.5)))
   else
-    print(string.format("[ofsr-restore] %q seeded (live already squeezed)", key:gsub("\n", ":")))
+    print(string.format("[ofsr-restore] %q seeded (live already squeezed at %dx%d)",
+      key:gsub("\n", ":"),
+      math.floor(live.w + 0.5), math.floor(live.h + 0.5)))
   end
   lastKnownTitle[win:id()] = key
   return restoredVirtual
@@ -361,20 +368,24 @@ function M.shove(win, dir)
 
   -- Visual feedback at the screen edge being absorbed-into / released-from.
   -- Red on squeeze (more absorbed), green on stretch (less). Pure slides skip.
-  if flashEdge then
-    local edge, delta = changedEdge(prevAbs, newAbs)
-    if edge then
-      flashEdge(screen, edge, delta > 0 and SQUEEZE_RED or STRETCH_GREEN)
-    end
+  local edge, delta = changedEdge(prevAbs, newAbs)
+  if flashEdge and edge then
+    flashEdge(screen, edge, delta > 0 and SQUEEZE_RED or STRETCH_GREEN)
   end
 
-  print(string.format(
-    "[shove] win=%q dir=%s vis=%dx%d absL=%d absR=%d absT=%d absB=%d",
-    appName .. ":" .. (win:title() or ""), dir,
-    math.floor(newVisible.w + 0.5), math.floor(newVisible.h + 0.5),
-    math.floor(newAbs.L + 0.5), math.floor(newAbs.R + 0.5),
-    math.floor(newAbs.T + 0.5), math.floor(newAbs.B + 0.5)
-  ))
+  -- Trace only when something interesting happened — i.e., absorption changed
+  -- this op, or the window was already in a non-trivial absorbed state. Pure
+  -- slides (no absorbed offset before or after) stay silent.
+  local prevHasAbs = prevAbs.L > 0.5 or prevAbs.R > 0.5 or prevAbs.T > 0.5 or prevAbs.B > 0.5
+  if edge or hasAbs or prevHasAbs then
+    print(string.format(
+      "[shove] win=%q dir=%s vis=%dx%d absL=%d absR=%d absT=%d absB=%d",
+      appName .. ":" .. (win:title() or ""), dir,
+      math.floor(newVisible.w + 0.5), math.floor(newVisible.h + 0.5),
+      math.floor(newAbs.L + 0.5), math.floor(newAbs.R + 0.5),
+      math.floor(newAbs.T + 0.5), math.floor(newAbs.B + 0.5)
+    ))
+  end
 end
 
 -- Mirror a visible-frame delta on the virtual frame (B4: resize preserves
