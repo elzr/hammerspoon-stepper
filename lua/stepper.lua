@@ -112,7 +112,20 @@ end
 local minShrinkSize = {
   kitty = {w = 500, h = 200},
 }
-ofsr.init({ minShrinkSize = minShrinkSize })
+
+-- Forward declaration for edge highlight (defined later with other visual feedback).
+-- Hoisted up here so ofsr.init can capture it as an upvalue via a deferred closure.
+local flashEdgeHighlight
+
+-- L010 needs both: screen-edge flash for squeeze/stretch (red/green at the edge
+-- being absorbed into / released from), and window-border flash for the
+-- divergence-reset case (red border on the focused window when its virtual
+-- frame is dropped because an external tool moved it).
+ofsr.init({
+  minShrinkSize = minShrinkSize,
+  flashEdge = function(screen, dir, color) return flashEdgeHighlight(screen, dir, color) end,
+  flashWindow = focus.flashFocusHighlight,
+})
 
 -- Default compact size for PiP mode
 local defaultCompactSize = {w = 400, h = 300}
@@ -128,9 +141,6 @@ local shrunkWindows = {}
 -- Pressing the same combo again within 1 hour restores the window.
 local displayUndo = {}
 local DISPLAY_UNDO_TTL = 3600  -- seconds
-
--- Forward declaration for edge highlight (defined later with other visual feedback)
-local flashEdgeHighlight
 
 -- Shift-first resize mode (global, managed by callback at end of file)
 _G.shiftFirstMode = false
@@ -776,11 +786,12 @@ local function toggleCompact()
   instant(function() win:setFrame(newFrame) end)
 end
 
--- Flash a thick blue border on the screen edge(s)
--- dir can be a single direction ("left") or a table of directions ({"left", "right"})
+-- Flash a thick border on the screen edge(s).
+-- dir can be a single direction ("left") or a table of directions ({"left", "right"}).
+-- Optional color override (default green) lets L010 reuse this for red/green absorb cues.
 local edgeHighlight = nil
 local edgeHighlightTimer = nil
-flashEdgeHighlight = function(screen, dir)
+flashEdgeHighlight = function(screen, dir, colorOverride)
   if edgeHighlight then
     edgeHighlight:delete()
     edgeHighlight = nil
@@ -788,7 +799,7 @@ flashEdgeHighlight = function(screen, dir)
   if edgeHighlightTimer then edgeHighlightTimer:stop() end
 
   local thick = 12
-  local color = {red = 0.3, green = 0.8, blue = 0.4, alpha = 0.9}
+  local color = colorOverride or {red = 0.3, green = 0.8, blue = 0.4, alpha = 0.9}
 
   -- Normalize to table of directions
   local dirs = type(dir) == "table" and dir or {dir}
@@ -1014,11 +1025,16 @@ hs.hotkey.bind({"cmd"}, "forwarddelete", function()
   end
 end)
 
--- Initialize mouse move module (inject shared border canvas API from focus)
+-- Initialize mouse move module (inject shared border canvas API from focus).
+-- onDragStart fires once per fn-drag so L010 can drop its virtual frame
+-- proactively (with a red border flash) before the drag invalidates it.
 mousemove.init({
   createBorderCanvas = focus.createBorderCanvas,
   updateBorderCanvas = focus.updateBorderCanvas,
   deleteBorderCanvas = focus.deleteBorderCanvas,
+  onDragStart = function(win)
+    if #hs.screen.allScreens() == 1 then ofsr.resetWithNotice(win) end
+  end,
 })
 
 -- Initialize Bear HUD (note hotkeys + caret position persistence)

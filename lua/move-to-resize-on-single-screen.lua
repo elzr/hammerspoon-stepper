@@ -16,8 +16,14 @@
 local M = {}
 
 local PROJECT_FLOOR = 200
+local DIVERGENCE_TOLERANCE = 5  -- px; > this on any axis means external tool moved the window
+
+local SQUEEZE_RED  = {red = 0.9, green = 0.2, blue = 0.2, alpha = 0.95}
+local STRETCH_GREEN = {red = 0.2, green = 0.85, blue = 0.4, alpha = 0.95}
 
 local minShrinkSize = {}
+local flashEdge = nil    -- (screen, dir, color) — screen-edge flash for squeeze/stretch
+local flashWindow = nil  -- (win, dir, opts)     — window-border flash for divergence-reset
 
 -- [winID] = { virtualFrame, expectedVisible, ts }
 M.sessionVirtual = {}
@@ -94,45 +100,126 @@ function M.reset(win)
   M.sessionVirtual[win:id()] = nil
 end
 
+-- Drop the virtual frame for `win` if one exists, with a red window-border
+-- flash to communicate the drop to the user. No-op (no flash) if the window
+-- has no virtual frame. Used by mousemove.lua to proactively notify when
+-- fn-drag is about to invalidate a squeeze.
+function M.resetWithNotice(win)
+  if not win then return false end
+  local entry = M.sessionVirtual[win:id()]
+  if not entry then return false end
+  M.sessionVirtual[win:id()] = nil
+  if flashWindow then flashWindow(win, nil, {color = SQUEEZE_RED}) end
+  print(string.format("[ofsr-reset] win=%q (drag will invalidate virtual frame)",
+    win:title() or "?"))
+  return true
+end
+
 -- ---------------------------------------------------------------------------
 -- Operations
 -- ---------------------------------------------------------------------------
+
+-- True if live frame has diverged from what we last applied (external tool
+-- moved/resized between operations). Tolerance absorbs Retina rounding.
+local function hasDiverged(win)
+  local entry = M.sessionVirtual[win:id()]
+  if not entry then return false end
+  local live = win:frame()
+  local e = entry.expectedVisible
+  return math.abs(live.x - e.x) > DIVERGENCE_TOLERANCE
+      or math.abs(live.y - e.y) > DIVERGENCE_TOLERANCE
+      or math.abs(live.w - e.w) > DIVERGENCE_TOLERANCE
+      or math.abs(live.h - e.h) > DIVERGENCE_TOLERANCE
+end
+M._hasDiverged = hasDiverged
+
+-- Returns the screen-edge whose absorbed offset changed most this op, plus the
+-- signed delta. Positive delta = squeezing (more absorbed), negative = stretching.
+local function changedEdge(prev, new)
+  local d = {left = new.L - prev.L, right = new.R - prev.R,
+             up = new.T - prev.T, down = new.B - prev.B}
+  local bestEdge, bestDelta, bestMag = nil, 0, 0.5  -- threshold to ignore Retina noise
+  for edge, delta in pairs(d) do
+    if math.abs(delta) > bestMag then
+      bestMag = math.abs(delta); bestDelta = delta; bestEdge = edge
+    end
+  end
+  return bestEdge, bestDelta
+end
 
 function M.shove(win, dir)
   if not win then return end
   local appName = (win:application() and win:application():name()) or ""
   local screen = win:screen():frame()
+
+  if hasDiverged(win) then
+    -- Silent reset: fn-drag's onDragStart already flashed (proactive). For
+    -- non-fn-drag external moves (BTT, system shortcuts, etc.) we still
+    -- self-heal here, but without a flash since the user wasn't watching for it.
+    print(string.format("[ofsr-divergence] win=%q — external move detected, silent reset",
+      win:title() or "?"))
+    M.sessionVirtual[win:id()] = nil
+  end
+
   local virtual = M.getVirtual(win) or win:frame()
+  local prevAbs = absorbed(virtual, screen)
   local step = M.getStep(screen)
   local floor = M.getFloor(appName)
 
   local newVirtual = M.computeMove(virtual, dir, step, screen, floor)
   local newVisible = M.clampToScreen(newVirtual, screen)
+  local newAbs = absorbed(newVirtual, screen)
 
   win:setFrame(newVisible)
 
-  M.sessionVirtual[win:id()] = {
-    virtualFrame = newVirtual,
-    expectedVisible = newVisible,
-    ts = now(),
-  }
+  -- Only keep an entry when there's actual absorption to track. Pure slides
+  -- (no absorbed offset on any edge) leave the window in a clean state, so
+  -- a subsequent fn-drag should NOT flash red — there was nothing to lose.
+  local hasAbs = newAbs.L > 0.5 or newAbs.R > 0.5 or newAbs.T > 0.5 or newAbs.B > 0.5
+  if hasAbs then
+    M.sessionVirtual[win:id()] = {
+      virtualFrame = newVirtual,
+      expectedVisible = newVisible,
+      ts = now(),
+    }
+  else
+    M.sessionVirtual[win:id()] = nil
+  end
 
-  local abs = absorbed(newVirtual, screen)
+  -- Visual feedback at the screen edge being absorbed-into / released-from.
+  -- Red on squeeze (more absorbed), green on stretch (less). Pure slides skip.
+  if flashEdge then
+    local edge, delta = changedEdge(prevAbs, newAbs)
+    if edge then
+      flashEdge(screen, edge, delta > 0 and SQUEEZE_RED or STRETCH_GREEN)
+    end
+  end
+
   print(string.format(
     "[shove] win=%q dir=%s vis=%dx%d absL=%d absR=%d absT=%d absB=%d",
     appName .. ":" .. (win:title() or ""), dir,
     math.floor(newVisible.w + 0.5), math.floor(newVisible.h + 0.5),
-    math.floor(abs.L + 0.5), math.floor(abs.R + 0.5),
-    math.floor(abs.T + 0.5), math.floor(abs.B + 0.5)
+    math.floor(newAbs.L + 0.5), math.floor(newAbs.R + 0.5),
+    math.floor(newAbs.T + 0.5), math.floor(newAbs.B + 0.5)
   ))
 end
 
 -- Mirror a visible-frame delta on the virtual frame (B4: resize preserves
 -- absorbed). Caller passes the deltas it already applied to the visible frame.
+-- If the live frame has diverged (external tool moved the window), we drop
+-- the virtual state instead — preserving stale absorbed offset would be wrong.
 function M.bumpVirtual(win, dx, dy, dw, dh)
   if not win then return end
   local entry = M.sessionVirtual[win:id()]
   if not entry then return end
+
+  if hasDiverged(win) then
+    -- Silent reset; see comment in shove for the rationale.
+    print(string.format("[ofsr-divergence] win=%q — diverged before resize, silent reset",
+      win:title() or "?"))
+    M.sessionVirtual[win:id()] = nil
+    return
+  end
 
   local v = entry.virtualFrame
   local e = entry.expectedVisible
@@ -156,7 +243,12 @@ end
 function M.init(opts)
   opts = opts or {}
   if opts.minShrinkSize then minShrinkSize = opts.minShrinkSize end
-  print("[ofsr] initialized; project floor=" .. PROJECT_FLOOR .. "px")
+  if opts.flashEdge then flashEdge = opts.flashEdge end
+  if opts.flashWindow then flashWindow = opts.flashWindow end
+  print(string.format(
+    "[ofsr] initialized; project floor=%dpx, divergence tolerance=%dpx, flashEdge=%s flashWindow=%s",
+    PROJECT_FLOOR, DIVERGENCE_TOLERANCE,
+    flashEdge and "on" or "off", flashWindow and "on" or "off"))
 end
 
 -- Synthetic-frame assertions; run via:
