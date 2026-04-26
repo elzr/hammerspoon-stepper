@@ -115,12 +115,22 @@ local function readFile(path)
   return content
 end
 
+-- Returns "unchanged" if existing content already matches (no write, no log noise),
+-- "written" on successful write, or false on error. Path watchers fire bursts when
+-- upstream apps touch their plists without semantically changing them (rcmd, etc.);
+-- this dedupe keeps the console quiet.
 local function writeFile(path, content)
+  local fh = io.open(path, "r")
+  if fh then
+    local existing = fh:read("*a")
+    fh:close()
+    if existing == content then return "unchanged" end
+  end
   local f = io.open(path, "w")
   if not f then return false end
   f:write(content)
   f:close()
-  return true
+  return "written"
 end
 
 local function htmlEscape(s)
@@ -682,7 +692,6 @@ local function renderWarnings(warnings)
 end
 
 local function renderHtml(rcmd, hyper, other, warnings)
-  local timestamp = os.date("%Y-%m-%d %H:%M:%S")
   -- Map warnings by key for keymap dot rendering
   local warningsByKey = {}
   for _, w in ipairs(warnings or {}) do
@@ -704,7 +713,7 @@ local function renderHtml(rcmd, hyper, other, warnings)
     <span class="layer other">━ other</span>
     <span><span class="hyper-mark">◆</span> uses hyper modifier</span>
   </div>
-  <div class="meta">generated %s</div>
+  <div class="meta">auto-generated from rcmd plist + stepper configs</div>
 </header>
 
 %s
@@ -725,8 +734,7 @@ local function renderHtml(rcmd, hyper, other, warnings)
 <script src="keymap.js"></script>
 </body>
 </html>
-]], htmlEscape(timestamp),
-    renderWarnings(warnings or {}),
+]], renderWarnings(warnings or {}),
     renderKeyboard(rcmd, hyper, other, warningsByKey),
     renderBindings(rcmd, hyper, other))
 end
@@ -735,6 +743,7 @@ end
 -- Public API
 -- =============================================================================
 
+-- Returns "written", "unchanged", or false. Logs only on actual change or error.
 function M.generate()
   local rcmd = readRcmd()
   local hyper, other = readHyperConfigs()
@@ -742,27 +751,33 @@ function M.generate()
   local warnings = computeWarnings(rcmd, hyper, notes)
   mergeAnnotations(rcmd, hyper, other, notes)
   local html = renderHtml(rcmd, hyper, other, warnings)
-  local ok = writeFile(outputFile, html)
-  if ok then
+  local result = writeFile(outputFile, html)
+  if result == "written" then
     local rcmdN, hyperN, otherN = 0, 0, 0
     for _, b in pairs(rcmd)  do if b.app   then rcmdN  = rcmdN  + 1 end end
     for _, b in pairs(hyper) do if b.type  then hyperN = hyperN + 1 end end
     for _ in pairs(other) do otherN = otherN + 1 end
     print(string.format("[keymap] Generated keymap.html (%d rcmd, %d hyper, %d other, %d warnings)",
       rcmdN, hyperN, otherN, #warnings))
-  else
+  elseif not result then
     print("[keymap] FAILED to write " .. tostring(outputFile))
   end
+  return result
 end
 
--- Debounced regen (path watchers can fire bursts during atomic saves)
+-- Debounced regen (path watchers can fire bursts during atomic saves).
+-- Suppresses the "triggered by" log when the regen produced no actual change —
+-- rcmd touches its plist on every keypress without semantic change, so we'd
+-- otherwise spam the console with several regens per minute.
 local debounceTimer = nil
 local function scheduleRegen(reason)
   if debounceTimer then debounceTimer:stop() end
   debounceTimer = hs.timer.doAfter(0.5, function()
     debounceTimer = nil
-    print(string.format("[keymap] Regen triggered by: %s", reason or "?"))
-    M.generate()
+    local result = M.generate()
+    if result == "written" then
+      print(string.format("[keymap] Regen reason: %s", reason or "?"))
+    end
   end)
 end
 

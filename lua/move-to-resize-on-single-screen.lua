@@ -7,8 +7,7 @@
 -- contracts. Bottoms out at a per-app floor.
 --
 -- This module is gated at the call site by stepper.lua via layout.activeCount.
--- Persistence, visual feedback, divergence detection, and multi-screen
--- transition handling land in later phases (see plan.md).
+-- Multi-screen transition handling lands in v0.4 (see plan.md).
 --
 -- Design:  features/L010-move-to-resize-on-single-screen/design.md
 -- Plan:    features/L010-move-to-resize-on-single-screen/plan.md
@@ -17,19 +16,177 @@ local M = {}
 
 local PROJECT_FLOOR = 200
 local DIVERGENCE_TOLERANCE = 5  -- px; > this on any axis means external tool moved the window
+local PRUNE_AGE = 30 * 24 * 3600  -- 30 days
+local WRITE_DEBOUNCE = 5  -- seconds after last change
 
 local SQUEEZE_RED  = {red = 0.9, green = 0.2, blue = 0.2, alpha = 0.95}
 local STRETCH_GREEN = {red = 0.2, green = 0.85, blue = 0.4, alpha = 0.95}
 
+-- Apps where window identity reliably matches document identity (one note per
+-- window, title = note name). For these, persistent virtual frames are
+-- restored verbatim on close-reopen; the fresh-window heuristic is bypassed.
+local APP_PRESERVE_ON_CLOSE = {
+  ["Bear"] = true,
+}
+
 local minShrinkSize = {}
 local flashEdge = nil    -- (screen, dir, color) — screen-edge flash for squeeze/stretch
 local flashWindow = nil  -- (win, dir, opts)     — window-border flash for divergence-reset
+local dataFile = nil     -- absolute path; set in init
 
 -- [winID] = { virtualFrame, expectedVisible, ts }
 M.sessionVirtual = {}
 
+-- ["app\ntitle"] = { virtualFrameRel, ts } — survives reload/relaunch
+M.persistentMap = {}
+
+-- [winID] = "app\ntitle" — for detecting title rename mid-session
+local lastKnownTitle = {}
+
+local writeTimer = nil
+
 local function now()
   return hs.timer.secondsSinceEpoch()
+end
+
+-- ---------------------------------------------------------------------------
+-- Persistence (debounced disk writes, 30-day prune, app+title key)
+-- ---------------------------------------------------------------------------
+
+local function persistKey(win)
+  if not win then return nil end
+  local app = (win:application() and win:application():name()) or ""
+  local title = win:title() or ""
+  return app .. "\n" .. title
+end
+
+local function frameToRel(frame, screen)
+  return {
+    x = (frame.x - screen.x) / screen.w,
+    y = (frame.y - screen.y) / screen.h,
+    w = frame.w / screen.w,
+    h = frame.h / screen.h,
+  }
+end
+
+local function frameFromRel(rel, screen)
+  return {
+    x = screen.x + rel.x * screen.w,
+    y = screen.y + rel.y * screen.h,
+    w = rel.w * screen.w,
+    h = rel.h * screen.h,
+  }
+end
+
+local function writeToDisk()
+  if not dataFile then return end
+  local fh, err = io.open(dataFile, "w")
+  if not fh then
+    print("[ofsr] ERROR writing " .. dataFile .. ": " .. tostring(err))
+    return
+  end
+  fh:write(hs.json.encode(M.persistentMap, true))
+  fh:close()
+end
+
+local function scheduleWrite()
+  if writeTimer then writeTimer:stop() end
+  writeTimer = hs.timer.doAfter(WRITE_DEBOUNCE, function()
+    writeTimer = nil
+    writeToDisk()
+  end)
+end
+
+local function loadFromDisk()
+  if not dataFile then return 0 end
+  local fh = io.open(dataFile, "r")
+  if not fh then return 0 end
+  local json = fh:read("*a"); fh:close()
+  local ok, data = pcall(hs.json.decode, json)
+  if not ok or type(data) ~= "table" then return 0 end
+  local ts_now, kept, pruned = now(), 0, 0
+  for k, v in pairs(data) do
+    if v.ts and (ts_now - v.ts) < PRUNE_AGE then
+      M.persistentMap[k] = v; kept = kept + 1
+    else
+      pruned = pruned + 1
+    end
+  end
+  if pruned > 0 then scheduleWrite() end
+  return kept
+end
+
+-- Mirror screenmemory's title-rename pattern: when we notice a window's title
+-- has changed, copy the persistent entry from old key to new key so the
+-- squeeze follows the rename instead of getting orphaned.
+local function migrateRenamedTitle(win, currentKey)
+  local prevKey = lastKnownTitle[win:id()]
+  if prevKey and prevKey ~= currentKey and M.persistentMap[prevKey] then
+    M.persistentMap[currentKey] = M.persistentMap[prevKey]
+    M.persistentMap[prevKey] = nil
+    print(string.format("[ofsr] migrated rename %q → %q",
+      prevKey:gsub("\n", ":"), currentKey:gsub("\n", ":")))
+    scheduleWrite()
+  end
+  lastKnownTitle[win:id()] = currentKey
+end
+
+local function persistVirtual(win, virtualFrame, screen, hasAbs)
+  local key = persistKey(win)
+  if not key then return end
+  migrateRenamedTitle(win, key)
+  if hasAbs then
+    M.persistentMap[key] = {
+      virtualFrameRel = frameToRel(virtualFrame, screen),
+      ts = now(),
+    }
+    scheduleWrite()
+  elseif M.persistentMap[key] then
+    M.persistentMap[key] = nil
+    scheduleWrite()
+  end
+end
+
+-- Try to revive a virtual frame for `win` from the persistent map. Returns
+-- the virtual frame if revived (and applies it to the window if needed),
+-- or nil if no persistent entry exists or it was treated as stale.
+local function tryRestore(win, screen)
+  local key = persistKey(win)
+  local persisted = key and M.persistentMap[key]
+  if not persisted then return nil end
+
+  local restoredVirtual = frameFromRel(persisted.virtualFrameRel, screen)
+  local restoredVisible = M.clampToScreen(restoredVirtual, screen)
+  local live = win:frame()
+  local liveLooksSqueezed = math.abs(live.w - restoredVisible.w) < 10
+                        and math.abs(live.h - restoredVisible.h) < 10
+
+  -- Persistent entry has absorption if rel coords extend past [0,1].
+  local rel = persisted.virtualFrameRel
+  local hasPersistedAbs = rel.x < -0.001 or rel.y < -0.001
+                       or rel.x + rel.w > 1.001 or rel.y + rel.h > 1.001
+
+  local app = (win:application() and win:application():name()) or ""
+  local preserveOnClose = APP_PRESERVE_ON_CLOSE[app]
+
+  if hasPersistedAbs and not liveLooksSqueezed and not preserveOnClose then
+    -- Fresh window opened (e.g., new Chrome tab using the same title).
+    -- Drop the stale persistent entry and start clean.
+    print(string.format("[ofsr-restore] %q dropped (looks fresh, app not preserved)",
+      key:gsub("\n", ":")))
+    M.persistentMap[key] = nil
+    scheduleWrite()
+    return nil
+  end
+
+  if not liveLooksSqueezed then
+    win:setFrame(restoredVisible)
+    print(string.format("[ofsr-restore] %q applied (re-squeezing)", key:gsub("\n", ":")))
+  else
+    print(string.format("[ofsr-restore] %q seeded (live already squeezed)", key:gsub("\n", ":")))
+  end
+  lastKnownTitle[win:id()] = key
+  return restoredVirtual
 end
 
 -- ---------------------------------------------------------------------------
@@ -94,10 +251,17 @@ end
 
 function M.reset(win)
   if not win then return end
-  if M.sessionVirtual[win:id()] then
-    print(string.format("[reset] win=%q", (win:title() or "?")))
-  end
+  local hadEntry = M.sessionVirtual[win:id()] ~= nil
   M.sessionVirtual[win:id()] = nil
+  -- Drop the persistent entry too — explicit resets (snap-to-edge, maximize,
+  -- etc.) take direct control of size/position, so the cross-session squeeze
+  -- shouldn't haunt this window after the user said "no, I want this size."
+  local key = persistKey(win)
+  if key and M.persistentMap[key] then
+    M.persistentMap[key] = nil
+    scheduleWrite()
+  end
+  if hadEntry then print(string.format("[reset] win=%q", (win:title() or "?"))) end
 end
 
 -- Drop the virtual frame for `win` if one exists, with a red window-border
@@ -161,7 +325,13 @@ function M.shove(win, dir)
     M.sessionVirtual[win:id()] = nil
   end
 
-  local virtual = M.getVirtual(win) or win:frame()
+  -- Lazy restore from persistent map if no session entry yet.
+  -- Survives reload, app-relaunch (with Bear opt-out), title rename.
+  local virtual = M.getVirtual(win)
+  if not virtual then
+    virtual = tryRestore(win, screen)
+  end
+  virtual = virtual or win:frame()
   local prevAbs = absorbed(virtual, screen)
   local step = M.getStep(screen)
   local floor = M.getFloor(appName)
@@ -185,6 +355,9 @@ function M.shove(win, dir)
   else
     M.sessionVirtual[win:id()] = nil
   end
+
+  -- Persist to disk (debounced) for cross-reload survival.
+  persistVirtual(win, newVirtual, screen, hasAbs)
 
   -- Visual feedback at the screen edge being absorbed-into / released-from.
   -- Red on squeeze (more absorbed), green on stretch (less). Pure slides skip.
@@ -223,32 +396,87 @@ function M.bumpVirtual(win, dx, dy, dw, dh)
 
   local v = entry.virtualFrame
   local e = entry.expectedVisible
+  local newV = {
+    x = v.x + (dx or 0), y = v.y + (dy or 0),
+    w = v.w + (dw or 0), h = v.h + (dh or 0),
+  }
   M.sessionVirtual[win:id()] = {
-    virtualFrame = {
-      x = v.x + (dx or 0), y = v.y + (dy or 0),
-      w = v.w + (dw or 0), h = v.h + (dh or 0),
-    },
+    virtualFrame = newV,
     expectedVisible = {
       x = e.x + (dx or 0), y = e.y + (dy or 0),
       w = e.w + (dw or 0), h = e.h + (dh or 0),
     },
     ts = now(),
   }
+
+  -- Persist updated virtual frame.
+  local screen = win:screen():frame()
+  local abs = absorbed(newV, screen)
+  local hasAbs = abs.L > 0.5 or abs.R > 0.5 or abs.T > 0.5 or abs.B > 0.5
+  persistVirtual(win, newV, screen, hasAbs)
 end
 
 -- ---------------------------------------------------------------------------
 -- Init + self-test
 -- ---------------------------------------------------------------------------
 
+-- Apply tryRestore to a window proactively, seeding the session entry too.
+-- Used for eager restoration on app launch / window-created (Bear especially).
+local function eagerRestore(win)
+  if not win or not win:isStandard() then return end
+  if #hs.screen.allScreens() ~= 1 then return end
+  local screen = win:screen():frame()
+  local restored = tryRestore(win, screen)
+  if not restored then return end
+  M.sessionVirtual[win:id()] = {
+    virtualFrame = restored,
+    expectedVisible = win:frame(),
+    ts = now(),
+  }
+  local key = persistKey(win)
+  print(string.format("[ofsr-eager] %q restored on appearance",
+    (key or "?"):gsub("\n", ":")))
+end
+
+-- Watch for windows of preserve-on-close apps (Bear) appearing, and apply
+-- the persistent squeeze immediately. Also iterate existing windows once on
+-- start, so reload-while-Bear-open also gets picked up.
+M._restoreWatcher = nil  -- module-level to survive GC
+local function startEagerRestoreWatcher()
+  if M._restoreWatcher then
+    M._restoreWatcher:unsubscribeAll()
+    M._restoreWatcher = nil
+  end
+  local appNames = {}
+  for app, _ in pairs(APP_PRESERVE_ON_CLOSE) do
+    table.insert(appNames, app)
+  end
+  if #appNames == 0 then return end
+
+  for _, app in ipairs(appNames) do
+    local appObj = hs.application.find(app)
+    if appObj then
+      for _, win in ipairs(appObj:allWindows()) do eagerRestore(win) end
+    end
+  end
+
+  M._restoreWatcher = hs.window.filter.new(appNames)
+    :subscribe(hs.window.filter.windowCreated, eagerRestore)
+end
+
 function M.init(opts)
   opts = opts or {}
   if opts.minShrinkSize then minShrinkSize = opts.minShrinkSize end
   if opts.flashEdge then flashEdge = opts.flashEdge end
   if opts.flashWindow then flashWindow = opts.flashWindow end
+  if opts.dataFile then dataFile = opts.dataFile end
+  local kept = loadFromDisk()
+  startEagerRestoreWatcher()
   print(string.format(
-    "[ofsr] initialized; project floor=%dpx, divergence tolerance=%dpx, flashEdge=%s flashWindow=%s",
+    "[ofsr] initialized; floor=%dpx, divergence=%dpx, flashEdge=%s flashWindow=%s, persisted=%d, eagerWatch=%s",
     PROJECT_FLOOR, DIVERGENCE_TOLERANCE,
-    flashEdge and "on" or "off", flashWindow and "on" or "off"))
+    flashEdge and "on" or "off", flashWindow and "on" or "off", kept,
+    M._restoreWatcher and "on" or "off"))
 end
 
 -- Synthetic-frame assertions; run via:

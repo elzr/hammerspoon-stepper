@@ -125,6 +125,7 @@ ofsr.init({
   minShrinkSize = minShrinkSize,
   flashEdge = function(screen, dir, color) return flashEdgeHighlight(screen, dir, color) end,
   flashWindow = focus.flashFocusHighlight,
+  dataFile = projectRoot .. "data/move-to-resize-on-single-screen.json",
 })
 
 -- Default compact size for PiP mode
