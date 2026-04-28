@@ -109,26 +109,9 @@ end
 -- Move window to target screen
 -- =========================================================================
 
-function M.moveToScreen(position, setupWindowOperation, instant, flashFocusHighlight)
-  local win = hs.window.focusedWindow()
-  if not win then return end
-
-  local map = M.buildScreenMap()
-  local targetScreen = map[position]
-  if not targetScreen then return end
-
-  local currentScreen = win:screen()
-  if currentScreen:id() == targetScreen:id() then return end
-
-  -- Determine departure screen position name (reverse lookup)
-  local departurePos = nil
-  for pos, scr in pairs(map) do
-    if scr:id() == currentScreen:id() then
-      departurePos = pos
-      break
-    end
-  end
-
+-- Core move: assumes targetScreen and role labels are already resolved.
+local function performMove(win, currentScreen, targetScreen, arrivalPos, departurePos,
+                            setupWindowOperation, instant, flashFocusHighlight)
   -- Save departure memory BEFORE anything changes
   if screenmemory and departurePos then
     screenmemory.saveDeparture(win, departurePos)
@@ -141,7 +124,7 @@ function M.moveToScreen(position, setupWindowOperation, instant, flashFocusHighl
   local targetFrame = targetScreen:frame()
 
   -- Check for remembered position at target screen
-  local remembered = screenmemory and screenmemory.lookupArrival(win, position)
+  local remembered = screenmemory and screenmemory.lookupArrival(win, arrivalPos)
   local newFrame
 
   if remembered then
@@ -219,6 +202,46 @@ function M.moveToScreen(position, setupWindowOperation, instant, flashFocusHighl
   if flashFocusHighlight then
     flashFocusHighlight(win, nil)
   end
+end
+
+-- Public: resolve target screen by spatial position (built-in-relative map)
+function M.moveToScreen(position, setupWindowOperation, instant, flashFocusHighlight)
+  local win = hs.window.focusedWindow()
+  if not win then return end
+
+  local map = M.buildScreenMap()
+  local targetScreen = map[position]
+  if not targetScreen then return end
+
+  local currentScreen = win:screen()
+  if currentScreen:id() == targetScreen:id() then return end
+
+  -- Reverse-lookup departure label
+  local departurePos = nil
+  for pos, scr in pairs(map) do
+    if scr:id() == currentScreen:id() then
+      departurePos = pos
+      break
+    end
+  end
+
+  performMove(win, currentScreen, targetScreen, position, departurePos,
+              setupWindowOperation, instant, flashFocusHighlight)
+end
+
+-- Public: move to a pre-resolved target screen with explicit role labels.
+-- Used for sidecar mode where there's no spatial map (iPad position is fluid).
+function M.moveToTargetScreen(targetScreen, arrivalPos, departurePos,
+                               setupWindowOperation, instant, flashFocusHighlight)
+  local win = hs.window.focusedWindow()
+  if not win then return end
+  if not targetScreen then return end
+
+  local currentScreen = win:screen()
+  if currentScreen:id() == targetScreen:id() then return end
+
+  performMove(win, currentScreen, targetScreen, arrivalPos, departurePos,
+              setupWindowOperation, instant, flashFocusHighlight)
 end
 
 function M.setScreenMemory(mod)

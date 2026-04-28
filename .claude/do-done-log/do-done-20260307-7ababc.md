@@ -1,7 +1,7 @@
 # Session: 20260307-7ababc
 
 ---
-*2026-03-07 15:13* <!-- 64af2d76 -->
+*2026-03-07 15:13* <!-- 8473b65a-470b-4e45-8a58-e22418254e56 -->
 
 ## Eli:
 let's review what just happened right now, I was on my macbook + 1 big display configuration and I moved to macbook + 5 external displays and my expectation was that the windows that were on the big sincle external screen would move to the central screen but it's empty and the restore seems to be a mess, what happened?
@@ -26,7 +26,7 @@ Want me to implement this? The changes would be:
 3. **Auto-restore**: actually call `M.restore()` (with a short delay) when transitioning to 5 displays, instead of just printing a hint
 
 ---
-*2026-03-07 15:15* <!-- 60fec003 -->
+*2026-03-07 15:15* <!-- d37ef7b0-1863-4204-b5b3-2e64c255b450 -->
 
 ## Eli:
 ok, go ahead
@@ -46,7 +46,7 @@ All 24 windows now have position names. Here's a summary of the changes:
 Next time you dock into the 5-display setup, windows should auto-restore to their correct screens.
 
 ---
-*2026-03-07 15:19* <!-- 225390a8 -->
+*2026-03-07 15:19* <!-- fb39bbb7-a4fa-4558-81b6-8408a62fca5c -->
 
 ## Eli:
 commit & push

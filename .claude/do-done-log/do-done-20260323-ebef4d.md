@@ -1,7 +1,7 @@
 # Session: 20260323-ebef4d
 
 ---
-*2026-03-23 11:26* <!-- d6b06e5d -->
+*2026-03-23 11:26* <!-- bd865e3f-9980-4061-950d-2cb7a4c7550d -->
 
 ## Eli:
 just did a wake up after the Mac went to sleep apparently, went to the bathroom very quick, no unplugging, and I'm finding that the w12 thoughts Bear notes window is in the top display and I don't think I've ever put it there, so what the fuck? was this only macOS doing? why didn'y our manual restore engage?
@@ -24,7 +24,7 @@ Here's what happened:
 **The gap to fix:** The system has no protection against macOS silently shuffling windows between displays during wake when screen count stays the same (5→5). Should `onWake()` auto-restore instead of just hinting? Or should it at least compare the current layout against the saved one and restore if positions differ?
 
 ---
-*2026-03-23 11:31* <!-- 4b8c921b -->
+*2026-03-23 11:31* <!-- 2c5dc80e-0d7d-465b-bbde-808b57adae0e -->
 
 ## Eli:
 oh ok, yes, let's have onWake auto-restore after a compare check bc macos has been super fragile lately even with minor sleeps... and I actually think this was just a sleep display situation not a sleep sleep

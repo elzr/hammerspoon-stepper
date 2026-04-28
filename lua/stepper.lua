@@ -80,10 +80,31 @@ local function stepMove(dir)
   spoon.WinWin:stepMove(dir)
 end
 
--- L010: on single-screen, fuse move with absorb-into-edge ("shove and stretch").
+-- Display config detector. Returns "single", "sidecar", or "multi".
+-- Sidecar wins over count: with iPad attached we want per-screen L010 even
+-- though there are 2 screens, because iPad position is fluid and doesn't
+-- compose well with cross-screen stepMove.
+local function currentDisplayConfig()
+  for _, s in ipairs(hs.screen.allScreens()) do
+    if (s:name() or ""):find("Sidecar") then return "sidecar" end
+  end
+  return #hs.screen.allScreens() == 1 and "single" or "multi"
+end
+
+-- Stable role label for a screen in sidecar mode.
+local function sidecarRoleOf(screen)
+  local name = (screen and screen:name()) or ""
+  if name:find("Sidecar") then return "sidecar" end
+  return "main"
+end
+
+-- L010: on single-screen OR sidecar, fuse move with absorb-into-edge
+-- ("shove and stretch"). Sidecar treats each screen independently — windows
+-- shove on the screen they're already on instead of jumping to the iPad.
 -- See features/L010-move-to-resize-on-single-screen/design.md
 local function dispatchStepMove(dir)
-  if #hs.screen.allScreens() == 1 then
+  local cfg = currentDisplayConfig()
+  if cfg == "single" or cfg == "sidecar" then
     updateAnimationDuration()
     ofsr.shove(hs.window.focusedWindow(), dir)
   else
@@ -93,11 +114,12 @@ end
 
 -- L010: ops that take explicit position/size control (snap-to-edge, maximize,
 -- shrink, etc.) reset the virtual frame so subsequent moves start from a
--- clean slate. Reset is a no-op outside single-screen mode.
+-- clean slate. Reset is a no-op outside L010-active modes.
 local function withReset(fn)
   return function(...)
     fn(...)
-    if #hs.screen.allScreens() == 1 then
+    local cfg = currentDisplayConfig()
+    if cfg == "single" or cfg == "sidecar" then
       ofsr.reset(hs.window.focusedWindow())
     end
   end
@@ -950,10 +972,17 @@ bindWithRepeat({"option", "cmd"}, "pagedown", function() focus.focusScreen("down
 
 -- Move window to specific display (ctrl+option + arrows/return)
 -- Pressing the same combo again within 1 hour undoes the move.
+-- Sidecar mode: all 5 keys collapse to a single "toggle to other screen"
+-- because the iPad's spatial position is fluid and unreliable for direction.
 local function moveToDisplay(position)
   local win = hs.window.focusedWindow()
   if not win then return end
   local winID = win:id()
+
+  local cfg = currentDisplayConfig()
+  if cfg == "sidecar" then
+    position = "other"  -- collapse direction; just toggle
+  end
 
   -- Check for undo: same combo pressed again within TTL
   local undo = displayUndo[winID]
@@ -961,12 +990,16 @@ local function moveToDisplay(position)
      and (hs.timer.secondsSinceEpoch() - undo.timestamp) < DISPLAY_UNDO_TTL then
     displayUndo[winID] = nil
     -- Save departure memory for current screen before undo
-    local map = screenswitch.buildScreenMap()
     local currentScreen = win:screen()
-    for pos, scr in pairs(map) do
-      if scr:id() == currentScreen:id() then
-        screenmemory.saveDeparture(win, pos)
-        break
+    if cfg == "sidecar" then
+      screenmemory.saveDeparture(win, sidecarRoleOf(currentScreen))
+    else
+      local map = screenswitch.buildScreenMap()
+      for pos, scr in pairs(map) do
+        if scr:id() == currentScreen:id() then
+          screenmemory.saveDeparture(win, pos)
+          break
+        end
       end
     end
     setupWindowOperation(true)
@@ -977,9 +1010,19 @@ local function moveToDisplay(position)
     return
   end
 
-  -- Check if move is possible (target screen exists and differs from current)
-  local map = screenswitch.buildScreenMap()
-  local targetScreen = map[position]
+  -- Resolve target screen
+  local targetScreen
+  if cfg == "sidecar" then
+    local screens = hs.screen.allScreens()
+    if #screens < 2 then return end
+    local currentID = win:screen():id()
+    for _, s in ipairs(screens) do
+      if s:id() ~= currentID then targetScreen = s; break end
+    end
+  else
+    local map = screenswitch.buildScreenMap()
+    targetScreen = map[position]
+  end
   if not targetScreen then return end
   if win:screen():id() == targetScreen:id() then return end
 
@@ -991,7 +1034,14 @@ local function moveToDisplay(position)
   }
 
   -- Perform the move
-  screenswitch.moveToScreen(position, setupWindowOperation, instant, focus.flashFocusHighlight)
+  if cfg == "sidecar" then
+    local arrLabel = sidecarRoleOf(targetScreen)
+    local depLabel = sidecarRoleOf(win:screen())
+    screenswitch.moveToTargetScreen(targetScreen, arrLabel, depLabel,
+                                    setupWindowOperation, instant, focus.flashFocusHighlight)
+  else
+    screenswitch.moveToScreen(position, setupWindowOperation, instant, focus.flashFocusHighlight)
+  end
   local app = win:application()
   layout.triggerSave(string.format("move-to-display:%s '%s'", position, app and app:name() or "?"))
 end
