@@ -13,7 +13,7 @@
 ## Surprises worth knowing
 
 - ==🟣Bear renders format glyphs as image tiles==, so they appear as `￼` in AXValue, indistinguishable from real image embeds. Nested-level bullets each have their own glyph variant (filled dot / open dot / diamond / open diamond / blockquote bar / nested bar / …). AX flattens every one of them to the same placeholder char.
-- ==🟣Silent AX writes==. `setAttributeValue("AXSelectedText", '<!-- ... -->')` succeeds but does NOT grow `AXValue` — the comment gets attached to the embed's markdown in Bear's SQLite, and AX still shows one `￼`. Verify visually (image shrinks) or via clipboard roundtrip (⌘A + ⌘C), not via length delta. Post-mortem: [F027 case study on "silent wins"](https://fleet.internal/features/F027-worldclass-code-debugging/case-2026-04-19-silent-wins-bear-ax-embeds.md).
+- ==🟣Silent AX writes==. `setAttributeValue("AXSelectedText", '<!-- ... -->')` succeeds but does NOT grow `AXValue` — the comment gets attached to the embed's markdown in Bear's SQLite, and AX still shows one `￼`. Verify visually (image shrinks) or via clipboard roundtrip (⌘A + ⌘C), not via length delta. Post-mortem in [F027](https://fleet.internal/features/F027-worldclass-code-debugging/): ==🟣[case-studies/2026-04-19-silent-wins-bear-ax-embeds.md](https://fleet.internal/features/F027-worldclass-code-debugging/case-studies/2026-04-19-silent-wins-bear-ax-embeds.md)==.
 - ==🟣[Paste app](https://pasteapp.io/) does NOT synthesize ⌘V== when you pick a clip and hit Enter — verified by [paste-source-probe.lua](scripts/paste-source-probe.lua). So a ⌘V-only eventtap would break the Paste-app workflow; we added a ⌘⇧Space→Enter state machine to cover it.
 
 ## Contents
@@ -101,4 +101,4 @@ When you select ==🟣only== an image in Bear (no surrounding text) and run `⌥
 - [scripts/bear-paste-trace.lua](scripts/bear-paste-trace.lua) — log-only observer that records every AXSelectedTextChanged fire to NDJSON. Used to diagnose the format-glyph trap
 - [scripts/drive-trace-run.lua](scripts/drive-trace-run.lua) — synthetic driver that runs the reproduction scenarios into a test note, with AX-focus safety checks
 - [scripts/paste-source-probe.lua](scripts/paste-source-probe.lua) — logs ⌘V events with source PID to answer "does app X synthesize ⌘V?"
-- [F027 case study](https://fleet.internal/features/F027-worldclass-code-debugging/case-2026-04-19-silent-wins-bear-ax-embeds.md) — the debugging post-mortem on silent wins
+- [F027](https://fleet.internal/features/F027-worldclass-code-debugging/) case study ==🟢[case-studies/2026-04-19-silent-wins-bear-ax-embeds.md](https://fleet.internal/features/F027-worldclass-code-debugging/case-studies/2026-04-19-silent-wins-bear-ax-embeds.md)== — the debugging post-mortem on silent wins
