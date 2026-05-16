@@ -36,7 +36,7 @@ The Stepper hyperkey HUD livekey shortcuts (==🔵[L007-hyperkey-shortcuts](open
 
 ==🟣L010 and L011 are duals==:
 
-- ==🔵[L010 — move-to-resize-on-single-screen](openfolder:///Users/sara/Library/CloudStorage/Dropbox/projects/log/2025/hammerspoon/stepper/features/L010-move-to-resize-on-single-screen)== persists a **virtual frame** — *hypothetical-future state* about where the window WOULD be if the screen were infinite. Used to revive a squeeze.
+- ==🔵[L010 — move-to-resize](openfolder:///Users/sara/Library/CloudStorage/Dropbox/projects/log/2025/hammerspoon/stepper/features/L010-move-to-resize)== originally persisted a **virtual frame** — *hypothetical-future state* about where the window WOULD be if the screen were infinite. Used to revive a squeeze. ==🔴v0.4 pared this down to mechanical-only shove with no persistence==, so the "duality" framing below is now historical context for what was scoped, not what's shipped. See [L010 README](openfile:///Users/sara/Library/CloudStorage/Dropbox/projects/log/2025/hammerspoon/stepper/features/L010-move-to-resize/README.md) for current behavior.
 - ==🔵L011== persists a **visible frame** — *realized-past state* about where the window WAS at last save. Used to revive a position.
 
 Both are forms of "remember per-note geometry across close-reopen," but they answer different questions: L010 answers *"how was this note squeezed?"*; L011 answers *"where was this note sitting?"*
@@ -108,7 +108,7 @@ L011 lives **inside** [bear-hud.lua](openfile:///Users/sara/Library/CloudStorage
 
 **Doesn't touch:**
 
-- `lua/move-to-resize-on-single-screen.lua` — L010 stays standalone; L011 reads from it but doesn't write to it.
+- ==🔵[lua/move-to-resize.lua](openfile:///Users/sara/Library/CloudStorage/Dropbox/projects/log/2025/hammerspoon/stepper/lua/move-to-resize.lua)== — L010 stays standalone; L011 would read from it but never writes to it. (Note: L010 no longer exposes `getVirtual` since v0.4 removed all persistent state — the deference check above is now historical, and L011 just always runs.)
 
 ## Edge cases
 

@@ -1,19 +1,20 @@
 -- =============================================================================
--- L010 — move-to-resize-on-single-screen ("shove")
+-- L010 — move-to-resize ("shove")
 -- =============================================================================
--- On single-screen mode, fuses move and shrink: shoving a window past a screen
--- edge squeezes the visible frame by the off-screen overflow. The shrink has
--- no memory — moving back is a normal slide, not a stretch-back.
+-- Per-screen, fuses move and shrink: shoving a window past a screen edge
+-- squeezes the visible frame by the off-screen overflow. The shrink has no
+-- memory — moving back is a normal slide, not a stretch-back.
 --
--- Earlier versions (v0.1–v0.3.5) tracked a persisted virtual frame so the
--- window would stretch back to its original size when moved away from the
--- absorbed edge. That stretch behavior turned out to be almost never wanted,
--- and shift+arrow already covers intentional resize-from-edge. The pared-down
--- model below is just the absorption math, applied one-shot per keypress.
+-- Originally shipped as move-to-resize-on-single-screen with a persisted
+-- virtual frame so the window would stretch back to its original size. That
+-- behavior was almost never wanted (shift+arrow already covers intentional
+-- resize-from-edge) so v0.4 pared down to pure mechanical shove. Active
+-- whenever the dispatcher in stepper.lua decides the layout doesn't have
+-- room to spare for an off-screen overflow — currently: single-screen,
+-- sidecar (laptop + iPad), and dual (laptop + one external monitor).
 --
--- This module is gated at the call site by stepper.lua via currentDisplayConfig.
---
--- Design:  features/L010-move-to-resize-on-single-screen/design.md
+-- Docs:     features/L010-move-to-resize/README.md
+-- History:  features/L010-move-to-resize/original-vision/ (v0.1–v0.3.5 design)
 
 local M = {}
 
@@ -125,7 +126,7 @@ function M.init(opts)
 end
 
 -- Synthetic-frame assertions; run via:
---   hs -c 'return dofile(".../move-to-resize-on-single-screen.lua").selfTest()'
+--   hs -c 'return dofile(".../move-to-resize.lua").selfTest()'
 function M.selfTest()
   local results = {}
   local function eq(label, a, b)

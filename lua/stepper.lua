@@ -18,7 +18,7 @@ bear_hud = dofile(scriptPath .. "bear-hud.lua")
 bear_paste = dofile(scriptPath .. "bear-paste.lua")
 layout = dofile(scriptPath .. "layout.lua")
 keymap = dofile(projectRoot .. "features/L009-keymap/keymap.lua")
-ofsr = dofile(scriptPath .. "move-to-resize-on-single-screen.lua")
+ofsr = dofile(scriptPath .. "move-to-resize.lua")
 
 -- Clean up any orphaned focus highlights from previous session
 focus.clearHighlight()
@@ -80,15 +80,19 @@ local function stepMove(dir)
   spoon.WinWin:stepMove(dir)
 end
 
--- Display config detector. Returns "single", "sidecar", or "multi".
+-- Display config detector. Returns "single", "sidecar", "dual", or "multi".
 -- Sidecar wins over count: with iPad attached we want per-screen L010 even
 -- though there are 2 screens, because iPad position is fluid and doesn't
--- compose well with cross-screen stepMove.
+-- compose well with cross-screen stepMove. Dual = laptop + one external
+-- monitor — like sidecar but with a stable second screen.
 local function currentDisplayConfig()
   for _, s in ipairs(hs.screen.allScreens()) do
     if (s:name() or ""):find("Sidecar") then return "sidecar" end
   end
-  return #hs.screen.allScreens() == 1 and "single" or "multi"
+  local n = #hs.screen.allScreens()
+  if n == 1 then return "single" end
+  if n == 2 then return "dual" end
+  return "multi"
 end
 
 -- Stable role label for a screen in sidecar mode.
@@ -98,15 +102,17 @@ local function sidecarRoleOf(screen)
   return "main"
 end
 
--- L010: on single-screen OR sidecar, fuse move with absorb-into-edge ("shove").
+-- L010: fuse move with absorb-into-edge ("shove") whenever the layout
+-- doesn't have room to spare for an off-screen overflow.
 -- Pushing a window past an edge squeezes the visible frame by the off-screen
 -- overflow; subsequent move-back is a normal slide (no stretch-back memory).
--- Sidecar treats each screen independently — windows shove on the screen
--- they're already on instead of jumping to the iPad.
--- See features/L010-move-to-resize-on-single-screen/design.md
+-- Single/sidecar/dual all treat each screen independently — windows shove on
+-- the screen they're already on instead of jumping to the neighbor.
+-- 3+ screens fall back to vanilla WinWin stepMove, which can cross screens.
+-- See features/L010-move-to-resize/README.md
 local function dispatchStepMove(dir)
   local cfg = currentDisplayConfig()
-  if cfg == "single" or cfg == "sidecar" then
+  if cfg == "single" or cfg == "sidecar" or cfg == "dual" then
     updateAnimationDuration()
     ofsr.shove(hs.window.focusedWindow(), dir)
   else
