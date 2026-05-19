@@ -26,6 +26,7 @@ local liveToggleFile = nil  -- set by init()
 local summonedNotes = {}    -- {key = {originalFrame}}
 local saveInFlight = false  -- guards against overlapping timer saves
 local dirty = false         -- tracks whether positions need writing to disk
+local priorWindow = nil     -- window focused before the most recent hotkey raise; restored on toggle-off
 
 -- =============================================================================
 -- Accessibility helpers
@@ -480,6 +481,12 @@ end
 local function handleNoteHotkey(noteTitle)
   print(string.format("[bear-hud] Hotkey for '%s'", noteTitle))
   local noteWin = findBearWindowByTitle(noteTitle)
+  local focusedAtEntry = hs.window.focusedWindow()
+  -- Capture prior focus unless we're dismissing the already-focused target; in
+  -- that case keep whatever was captured on the raising press.
+  if not (noteWin and focusedAtEntry and noteWin:id() == focusedAtEntry:id()) then
+    priorWindow = focusedAtEntry
+  end
 
   -- Not open → open via bear:// URL
   if not noteWin then
@@ -510,7 +517,22 @@ local function handleNoteHotkey(noteTitle)
   if focusedWin and focusedWin:id() == noteWin:id() then
     print(string.format("[bear-hud] Hiding '%s'", noteTitle))
     M.saveCurrentPosition()
-    noteWin:minimize()
+    if priorWindow then
+      -- Focus prior FIRST, then minimize after focus has settled. Doing them
+      -- back-to-back is a race at the WindowServer between our cross-app focus
+      -- change and macOS's z-order recalc triggered by minimizing Bear's
+      -- frontmost window — sometimes Bear's next window wins. Delaying the
+      -- minimize until the note is no longer in the frontmost app removes the
+      -- race entirely.
+      local pw = priorWindow
+      priorWindow = nil
+      pcall(function() focusModule.focusSingleWindow(pw) end)
+      hs.timer.doAfter(0.15, function()
+        pcall(function() noteWin:minimize() end)
+      end)
+    else
+      noteWin:minimize()
+    end
     return
   end
 
@@ -547,6 +569,10 @@ local function handleLiveToggle(slotKey)
   if not slot then return end
   print(string.format("[bear-hud] Live %s toggle '%s'", slotKey, slot.title))
   local win = findWindowByBundleAndTitle(slot.bundleID, slot.title)
+  local focusedAtEntry = hs.window.focusedWindow()
+  if not (win and focusedAtEntry and win:id() == focusedAtEntry:id()) then
+    priorWindow = focusedAtEntry
+  end
 
   if not win then
     -- Bear notes can be opened via URL; other apps can't be auto-opened
@@ -581,7 +607,16 @@ local function handleLiveToggle(slotKey)
   if focusedWin and focusedWin:id() == win:id() then
     print(string.format("[bear-hud] Hiding '%s'", slot.title))
     if isBearSlot(slot) then M.saveCurrentPosition() end
-    win:minimize()
+    if priorWindow then
+      local pw = priorWindow
+      priorWindow = nil
+      pcall(function() focusModule.focusSingleWindow(pw) end)
+      hs.timer.doAfter(0.15, function()
+        pcall(function() win:minimize() end)
+      end)
+    else
+      win:minimize()
+    end
     return
   end
 
